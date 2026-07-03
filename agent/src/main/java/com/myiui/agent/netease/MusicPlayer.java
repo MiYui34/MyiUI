@@ -125,7 +125,10 @@ public final class MusicPlayer {
     }
 
     public static void seek(long targetMs) {
-        seekTargetMs = Math.max(0, targetMs);
+        long clamped = Math.max(0, targetMs);
+        // 忽略与当前位置差距过小的 seek，避免拖动进度条时反复抽搐
+        if (Math.abs(clamped - positionMs) < 800) return;
+        seekTargetMs = clamped;
         seekRequested = true;
     }
 

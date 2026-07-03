@@ -23,6 +23,11 @@ final class ClassUtil {
                 || "net/minecraft/client/gui/hud/InGameHud".equals(internalName);
     }
 
+    static boolean isPlayerListHud(String internalName) {
+        return "net/minecraft/class_355".equals(internalName)
+                || "net/minecraft/client/gui/hud/PlayerListHud".equals(internalName);
+    }
+
     static boolean isTitleScreenInstance(Object screen) {
         if (screen == null) return false;
         String name = screen.getClass().getName();

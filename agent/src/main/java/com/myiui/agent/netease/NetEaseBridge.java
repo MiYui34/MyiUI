@@ -37,12 +37,27 @@ public final class NetEaseBridge {
         MusicPlayer.setCompletionListener(songId -> NetEaseContent.scrobble(songId));
         AgentLog.info("NetEaseBridge ready. logged_in=" + LoginManager.isLoggedIn());
         // 后台线程自动启动 api-enhanced 服务（不阻塞 Agent 初始化）
+        // 启动后持续监控，断线自动重启
         Thread starter = new Thread(() -> {
-            boolean ok = ApiServiceStarter.ensureRunning();
-            if (ok) {
-                AgentLog.info("NetEase API service is reachable");
-            } else {
-                AgentLog.error("NetEase API service unavailable: " + ApiServiceStarter.startError(), null);
+            // 首次启动：最多重试 3 次
+            for (int attempt = 0; attempt < 3; attempt++) {
+                if (ApiServiceStarter.ensureRunning()) {
+                    AgentLog.info("NetEase API service is reachable");
+                    break;
+                }
+                AgentLog.error("NetEase API service unavailable (attempt " + (attempt + 1) + "): "
+                        + ApiServiceStarter.startError(), null);
+                if (attempt < 2) {
+                    try { Thread.sleep(3000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                }
+            }
+            // 持续监控：每 30 秒检查一次，断线自动重启
+            while (!Thread.currentThread().isInterrupted()) {
+                try { Thread.sleep(30000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                if (!ApiServiceStarter.isReachable()) {
+                    AgentLog.info("NetEase: API service down, attempting restart...");
+                    ApiServiceStarter.ensureRunning();
+                }
             }
         }, "MyiUI-ApiServiceStarter");
         starter.setDaemon(true);
@@ -204,16 +219,27 @@ public final class NetEaseBridge {
     private static String playQueueFromJson(String json) {
         try {
             com.google.gson.JsonElement root = com.google.gson.JsonParser.parseString(json);
-            com.google.gson.JsonArray arr = root.isJsonArray() ? root.getAsJsonArray()
-                    : (root.isJsonObject() && root.getAsJsonObject().has("songs")
-                            ? root.getAsJsonObject().getAsJsonArray("songs") : null);
+            com.google.gson.JsonArray arr = null;
+            int startIndex = 0;
+            if (root.isJsonArray()) {
+                arr = root.getAsJsonArray();
+            } else if (root.isJsonObject()) {
+                com.google.gson.JsonObject o = root.getAsJsonObject();
+                if (o.has("songs") && o.get("songs").isJsonArray()) {
+                    arr = o.getAsJsonArray("songs");
+                }
+                if (o.has("start")) {
+                    startIndex = o.get("start").getAsInt();
+                }
+            }
             if (arr == null) return "ERR no_songs";
             java.util.List<NetEaseModels.Song> list = new java.util.ArrayList<>();
             for (com.google.gson.JsonElement e : arr) {
                 if (e.isJsonObject()) list.add(NetEaseModels.parseSong(e.getAsJsonObject()));
             }
             if (list.isEmpty()) return "ERR empty_queue";
-            MusicPlayer.playQueue(list, 0);
+            startIndex = Math.max(0, Math.min(startIndex, list.size() - 1));
+            MusicPlayer.playQueue(list, startIndex);
             return "OK";
         } catch (Throwable t) {
             return "ERR play_queue:" + t.getMessage();

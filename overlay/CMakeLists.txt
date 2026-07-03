@@ -42,7 +42,6 @@ add_library(myiui-overlay SHARED
     src/ui/profile_avatar.cpp
     src/ui/profile_card.cpp
     src/ui/menu_data.cpp
-    src/ui/main_menu.cpp
     src/ui/ui_manager.cpp
     src/ui/menu_icons.cpp
     src/ui/media_library.cpp
@@ -64,16 +63,12 @@ add_library(myiui-overlay SHARED
     src/ui/intro/intro_particles.cpp
     src/ui/intro/intro_screen.cpp
     src/ui/logo_assets.cpp
-    src/ui/hud/liquid_glass_panel.cpp
-    src/ui/hud/hud_renderer.cpp
     src/ui/island/spring_animator.cpp
     src/ui/clickgui/clickgui.cpp
     src/ui/island/island_renderer.cpp
-    src/ui/chat/chat_renderer.cpp
     src/ui/music/cover_loader.cpp
     src/ui/music/music_panel.cpp
     src/render/gl_loader.cpp
-    src/render/liquid_glass_shader.cpp
     ../shared/logo_wic.cpp
     ${IMGUI_SOURCES}
     ${MINHOOK_SOURCES}

@@ -41,8 +41,8 @@ public final class Main {
             inst.addTransformer(new TitleScreenTransformer(), true);
             inst.addTransformer(new SodiumScreenTransformer(), true);
             inst.addTransformer(new MinecraftClientTransformer(), true);
-            inst.addTransformer(new InGameHudTransformer(), true);
-            inst.addTransformer(new ChatHudTransformer(), true);
+        inst.addTransformer(new InGameHudTransformer(), true);
+        inst.addTransformer(new PlayerListHudTransformer(), true);
 
             Class<?>[] retransform = findLoadedForRetransform(inst);
             if (retransform.length == 0) {
@@ -76,8 +76,8 @@ public final class Main {
         addIfLoaded(inst, out, "net.minecraft.class_310");
         addIfLoaded(inst, out, "net.minecraft.client.gui.hud.InGameHud");
         addIfLoaded(inst, out, "net.minecraft.class_329");
-        addIfLoaded(inst, out, "net.minecraft.client.gui.hud.ChatHud");
-        addIfLoaded(inst, out, "net.minecraft.class_340");
+        addIfLoaded(inst, out, "net.minecraft.client.gui.hud.PlayerListHud");
+        addIfLoaded(inst, out, "net.minecraft.class_355");
         addIfLoaded(inst, out, "net.caffeinemc.mods.sodium.client.gui.SodiumOptionsGUI");
         addIfLoaded(inst, out, "me.jellysquid.mods.sodium.client.gui.SodiumOptionsGUI");
         return out.toArray(Class[]::new);

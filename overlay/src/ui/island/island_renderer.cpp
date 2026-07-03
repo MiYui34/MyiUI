@@ -1,4 +1,5 @@
 #include "ui/island/island_renderer.h"
+#include "bridge/native_state.h"
 #include "bridge/ui_state_types.h"
 #include "ui/clickgui/clickgui.h"
 #include "ui/fonts.h"
@@ -8,9 +9,9 @@
 #include "imgui.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
-#include <chrono>
 
 namespace myiui::ui::island {
 
@@ -27,20 +28,30 @@ Spring1D g_springSwitch;  // 切换开关
 Spring1D g_springW;       // 动态宽度
 Spring1D g_springH;       // 动态高度
 Spring1D g_springHover;   // 鼠标悬停/按压形变
+Spring1D g_springContent; // 内容淡入
 
 float g_idleW = 200.f;
 bool g_initialized = false;
-float g_lastFrameMs = 0.f;
 
 uint16_t g_lastSeq = 0;
-bool g_lastNotifyActive = false;
 
-float NowMs() {
-    static auto start = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
-    return static_cast<float>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count());
-}
+struct TabLayoutCache {
+    uint16_t tabSeq = 0;
+    uint8_t playerCount = 0;
+    float viewportW = 0.f;
+    float scale = 0.f;
+    float targetW = 0.f;
+    float targetH = 0.f;
+    int colCount = 1;
+    int rowCount = 0;
+    float colW = 0.f;
+    float rowH = 0.f;
+    float headerH = 0.f;
+    float pad = 0.f;
+    float pingColW = 0.f;
+};
+
+TabLayoutCache g_tabLayout{};
 
 float S(float v) { return v * DynScale(); }
 
@@ -152,29 +163,152 @@ void RenderExpanded(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float s
     DrawOutlinedText(dl, fS, sizeS, ImVec2(tx + descW, y + S(24.f)), stateCol, state, alpha);
 }
 
+ImU32 PingColor(int ping, float alpha) {
+    if (ping < 0) {
+        return IM_COL32(148, 163, 184, static_cast<int>(220 * alpha));
+    }
+    if (ping < 80) {
+        return IM_COL32(52, 211, 153, static_cast<int>(255 * alpha));
+    }
+    if (ping < 150) {
+        return IM_COL32(250, 204, 21, static_cast<int>(255 * alpha));
+    }
+    return IM_COL32(248, 113, 113, static_cast<int>(255 * alpha));
+}
+
+void UpdateTabLayout(const myiui::shared::TabListState& tab, ImFont* font, float sizeS,
+                     float viewportW) {
+    const float scale = DynScale();
+    const bool dirty = g_tabLayout.tabSeq != tab.tab_seq
+                       || g_tabLayout.playerCount != tab.player_count
+                       || std::abs(g_tabLayout.viewportW - viewportW) > 1.f
+                       || std::abs(g_tabLayout.scale - scale) > 0.01f;
+    if (!dirty && g_tabLayout.targetW > 0.f) {
+        return;
+    }
+
+    g_tabLayout.tabSeq = tab.tab_seq;
+    g_tabLayout.playerCount = tab.player_count;
+    g_tabLayout.viewportW = viewportW;
+    g_tabLayout.scale = scale;
+    g_tabLayout.pad = S(10.f);
+    g_tabLayout.headerH = S(18.f);
+    g_tabLayout.rowH = S(15.f);
+    g_tabLayout.pingColW = S(44.f);
+
+    const int count = static_cast<int>(tab.player_count);
+    g_tabLayout.colCount = count > 10 ? 2 : 1;
+    g_tabLayout.rowCount = count <= 0 ? 0 : (count + g_tabLayout.colCount - 1) / g_tabLayout.colCount;
+
+    float maxNameW = TextW(font, sizeS, tab.header[0] ? tab.header : "Players");
+    for (int i = 0; i < count; ++i) {
+        maxNameW = (std::max)(maxNameW, TextW(font, sizeS, tab.players[i].name));
+    }
+
+    g_tabLayout.colW = maxNameW + g_tabLayout.pingColW + S(12.f);
+    float totalW = g_tabLayout.pad * 2.f + g_tabLayout.colW * static_cast<float>(g_tabLayout.colCount);
+    if (g_tabLayout.colCount > 1) {
+        totalW += S(8.f);
+    }
+    float totalH = g_tabLayout.pad * 2.f + g_tabLayout.headerH;
+    if (g_tabLayout.rowCount > 0) {
+        totalH += g_tabLayout.rowH * static_cast<float>(g_tabLayout.rowCount);
+    }
+
+    const float minW = S(160.f);
+    const float maxW = viewportW * 0.85f;
+    g_tabLayout.targetW = (std::clamp)(totalW, minW, maxW);
+    g_tabLayout.targetH = (std::max)(S(kIslandIdleH) + S(8.f), totalH);
+}
+
+void RenderTabList(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS,
+                   const myiui::shared::TabListState& tab,
+                   float x, float y, float w, float h, float alpha, float expandVal,
+                   float offsetX, float offsetY, const ThemeConfig& theme) {
+    if (alpha <= 0.01f) {
+        return;
+    }
+
+    const float contentScale = 0.92f + 0.08f * std::clamp(g_springContent.pos, 0.f, 1.f);
+    const float slideY = (1.f - std::clamp(g_springContent.pos, 0.f, 1.f)) * S(6.f);
+
+    const float innerX = x + offsetX;
+    const float innerY = y + offsetY + slideY;
+    const float cx = innerX + w * 0.5f;
+    const float cy = innerY + h * 0.5f;
+    const float scaledW = w * contentScale;
+    const float scaledH = h * contentScale;
+    const float drawX = cx - scaledW * 0.5f;
+    const float drawY = cy - scaledH * 0.5f;
+
+    const ImU32 headerCol = IM_COL32(theme.accent[0], theme.accent[1], theme.accent[2],
+                                     static_cast<int>(255 * alpha));
+    DrawOutlinedText(dl, fP, sizeP, ImVec2(drawX + g_tabLayout.pad, drawY + g_tabLayout.pad),
+                     headerCol, tab.header[0] ? tab.header : "Players", alpha);
+
+    const int count = static_cast<int>(tab.player_count);
+    for (int i = 0; i < count; ++i) {
+        const int col = i % g_tabLayout.colCount;
+        const int row = i / g_tabLayout.colCount;
+        const float stagger = static_cast<float>(i) * 0.035f;
+        const float rowAlpha = alpha * std::clamp((expandVal - stagger) * 1.4f, 0.f, 1.f);
+        if (rowAlpha <= 0.01f) {
+            continue;
+        }
+
+        const float colOffset = static_cast<float>(col) * (g_tabLayout.colW + S(8.f));
+        const float rowY = drawY + g_tabLayout.pad + g_tabLayout.headerH
+                           + static_cast<float>(row) * g_tabLayout.rowH;
+        const float nameX = drawX + g_tabLayout.pad + colOffset;
+        const float pingX = nameX + g_tabLayout.colW - g_tabLayout.pingColW;
+
+        DrawOutlinedText(dl, fS, sizeS, ImVec2(nameX, rowY),
+                         IM_COL32(226, 232, 240, static_cast<int>(230 * rowAlpha)),
+                         tab.players[i].name, rowAlpha);
+
+        char pingBuf[16];
+        const int ping = tab.players[i].ping;
+        if (ping >= 0) {
+            snprintf(pingBuf, sizeof(pingBuf), "%dms", ping);
+        } else {
+            snprintf(pingBuf, sizeof(pingBuf), "--");
+        }
+        DrawOutlinedText(dl, fS, sizeS, ImVec2(pingX, rowY), PingColor(ping, rowAlpha), pingBuf, rowAlpha);
+    }
+}
+
 }  // namespace
 
 void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
                   float viewportW, float viewportH, float dt) {
     myiui::shared::IslandState island{};
-    if (!shm.ReadIslandState(island)) return;
+    const bool hasIsland = myiui::bridge::NativeState::Instance().ReadIsland(island);
 
-    const float now = NowMs();
-    float delta = std::min((now - g_lastFrameMs) / 1000.f, 0.1f);
-    if (g_lastFrameMs == 0.f) delta = 0.016f;
-    g_lastFrameMs = now;
+    myiui::shared::TabListState tab{};
+    const bool hasTab = myiui::bridge::NativeState::Instance().ReadTabList(tab);
+    const bool tabActive = hasTab && tab.tab_visible != 0;
+
+    if (!hasIsland && !tabActive) {
+        return;
+    }
+
+    if (!hasIsland) {
+        island.valid = 1;
+        std::snprintf(island.title, sizeof(island.title), "MyiUI");
+    }
+
+    float delta = dt > 0.f ? std::min(dt, 0.1f) : 0.016f;
 
     // ── 弹簧参数初始化 ──
     if (!g_initialized) {
         g_initialized = true;
         g_springIntro.stiffness = 250.f;  g_springIntro.damping = 15.f;
-        g_springExpand.stiffness = 300.f; g_springExpand.damping = 18.f;
-        g_springSwitch.stiffness = 350.f; g_springSwitch.damping = 22.f; 
-        g_springW.stiffness = 320.f;      g_springW.damping = 16.f; // 略微调低阻尼，让宽高伸缩更 Q 弹
-        g_springH.stiffness = 320.f;      g_springH.damping = 16.f;
-        
-        // 交互弹簧刚度要高，让按压反馈立刻生效
-        g_springHover.stiffness = 450.f;  g_springHover.damping = 18.f; 
+        g_springExpand.stiffness = 300.f; g_springExpand.damping = 14.f;
+        g_springSwitch.stiffness = 350.f; g_springSwitch.damping = 22.f;
+        g_springW.stiffness = 320.f;      g_springW.damping = 14.f;
+        g_springH.stiffness = 320.f;      g_springH.damping = 14.f;
+        g_springHover.stiffness = 450.f;  g_springHover.damping = 18.f;
+        g_springContent.stiffness = 280.f; g_springContent.damping = 18.f;
 
         g_springIntro.Snap(0.f);
         g_springExpand.Snap(0.f);
@@ -182,20 +316,29 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         g_springW.Snap(0.f);
         g_springH.Snap(0.f);
         g_springHover.Snap(0.f);
+        g_springContent.Snap(0.f);
     }
 
     // ── 状态推导 ──
-    if (island.valid && g_springIntro.target == 0.f) {
+    if (tabActive) {
+        if (g_springIntro.pos < 0.99f) {
+            g_springIntro.Snap(1.f);
+        }
+        g_springIntro.SetTarget(1.f);
+    } else if (island.valid && g_springIntro.target == 0.f) {
         g_springIntro.SetTarget(1.f);
     }
 
-    bool shouldExpand = island.notify_count > 0;
+    const bool shouldExpandNotify = !tabActive && island.notify_count > 0;
+    const bool shouldExpandTab = tabActive;
+    const bool shouldExpand = shouldExpandTab || shouldExpandNotify;
     g_springExpand.SetTarget(shouldExpand ? 1.f : 0.f);
+    g_springContent.SetTarget(shouldExpand ? 1.f : 0.f);
 
     if (island.island_seq != g_lastSeq) {
         g_lastSeq = island.island_seq;
-        g_springSwitch.Snap(shouldExpand ? 0.f : std::clamp(g_springSwitch.pos, 0.f, 1.f));
-        g_springSwitch.SetTarget(shouldExpand ? 1.f : 0.f);
+        g_springSwitch.Snap(shouldExpandNotify ? 0.f : std::clamp(g_springSwitch.pos, 0.f, 1.f));
+        g_springSwitch.SetTarget(shouldExpandNotify ? 1.f : 0.f);
     }
 
     // ── 计算目标尺寸 ──
@@ -213,10 +356,14 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     float targetW = g_idleW;
     float targetH = idleH;
 
-    if (shouldExpand) {
+    if (shouldExpandTab) {
+        UpdateTabLayout(tab, fS, sizeS, viewportW);
+        targetW = (std::max)(g_idleW, g_tabLayout.targetW);
+        targetH = g_tabLayout.targetH;
+    } else if (shouldExpandNotify) {
         float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "通知");
         float descW = TextW(fS, sizeS, island.subtitle[0] ? island.subtitle : "模块已切换");
-        targetW = S(52.f) + std::max(titleW, descW) + S(16.f);
+        targetW = S(52.f) + (std::max)(titleW, descW) + S(16.f);
         targetH = expandedH;
     }
 
@@ -235,6 +382,7 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     g_springW.Step(delta);
     g_springH.Step(delta);
     g_springHover.Step(delta);
+    g_springContent.Step(delta);
 
     // ── 渲染前的数据准备 ──
     float introVal = g_springIntro.pos;
@@ -308,20 +456,28 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
 
     float idleAlpha = std::clamp((1.f - expandVal) * introAlpha, 0.f, 1.f);
     float expAlpha = std::clamp(expandVal * introAlpha, 0.f, 1.f);
+    float tabAlpha = std::clamp(g_springContent.pos * introAlpha, 0.f, 1.f);
 
-    if (idleAlpha > 0.01f) {
-        // 合并由于状态切换的 Y 轴偏移 和 物理惯性偏移
-        float offsetY = (1.f - expandVal) * S(8.f) - S(8.f); 
+    if (idleAlpha > 0.01f && !tabActive) {
+        float offsetY = (1.f - expandVal) * S(8.f) - S(8.f);
         RenderIdle(dl, fP, fS, sizeP, sizeS, island,
-                   fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY, 
+                   fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
                    finalW, finalH, idleAlpha, theme);
     }
 
-    if (expAlpha > 0.01f && shouldExpand) {
+    if (expAlpha > 0.01f && shouldExpandNotify) {
         float offsetY = (1.f - expandVal) * -S(8.f);
         RenderExpanded(dl, fP, fS, sizeP, sizeS, island,
-                       fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY, 
+                       fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
                        finalW, finalH, expAlpha, theme);
+    }
+
+    if (tabAlpha > 0.01f && shouldExpandTab && hasTab) {
+        float offsetY = (1.f - expandVal) * -S(6.f);
+        RenderTabList(dl, fP, fS, sizeP, sizeS, tab,
+                      fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
+                      finalW, finalH, tabAlpha, expandVal,
+                      inertiaOffsetX, 0.f, theme);
     }
 
     dl->PopClipRect();

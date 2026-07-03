@@ -33,6 +33,7 @@ void GlUniform1f(GLint loc, GLfloat v);
 void GlUniform1i(GLint loc, GLint v);
 void GlUniform2f(GLint loc, GLfloat x, GLfloat y);
 void GlUniform3f(GLint loc, GLfloat x, GLfloat y, GLfloat z);
+void GlUniform4f(GLint loc, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 void GlActiveTexture(GLenum tex);
 void GlBindAttribLocation(GLuint program, GLuint index, const char* name);
 void GlBindBuffer(GLenum target, GLuint buffer);

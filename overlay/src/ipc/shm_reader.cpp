@@ -51,18 +51,18 @@ bool ShmReader::ReadIslandState(myiui::shared::IslandState& out) const {
     return myiui::bridge::NativeState::Instance().ReadIsland(out);
 }
 
-bool ShmReader::ReadChatState(myiui::shared::ChatState& out) const {
-    if (!myiui::shared::IsChatScreen(GetScreenKind())) {
-        return false;
-    }
-    return myiui::bridge::NativeState::Instance().ReadChat(out);
-}
-
 bool ShmReader::ReadHudState(myiui::shared::HudState& out) const {
     if (GetScreenKind() != myiui::shared::ScreenKind::InGame) {
         return false;
     }
     return myiui::bridge::NativeState::Instance().ReadHud(out);
+}
+
+bool ShmReader::ReadTabListState(myiui::shared::TabListState& out) const {
+    if (!IsIslandActive()) {
+        return false;
+    }
+    return myiui::bridge::NativeState::Instance().ReadTabList(out);
 }
 
 bool ShmReader::PeekFrame(uint32_t& frameIndex, uint32_t& width, uint32_t& height) const {

@@ -21,7 +21,7 @@ public final class NativeBridge {
 
     public static native void pushHudState(byte[] packed);
 
-    public static native void pushChatState(byte[] packed);
+    public static native void pushTabListState(byte[] packed);
 
     public static native void pushVideoFrame(byte[] rgba, int width, int height, int frameIndex);
 }

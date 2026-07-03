@@ -225,8 +225,10 @@ public final class OptionsBridge {
             }
             ReflectiveOperationException last = null;
             for (String[] getter : new String[][]{
-                    {"getSoundVolume", "method_42431"},
+                    {"getCategorySoundVolume", "method_1630"},
+                    {"getSoundVolume", "method_71978"},
                     {"getCategorySoundVolume", "method_42432"},
+                    {"getSoundVolume", "method_42431"},
             }) {
                 try {
                     Method method = ReflectUtil.findInstanceMethod(options.getClass(), getter[0], getter[1],
@@ -237,6 +239,13 @@ public final class OptionsBridge {
                     }
                 } catch (ReflectiveOperationException e) {
                     last = e;
+                }
+            }
+            Method scanned = findCategoryVolumeMethod(options.getClass(), category.getClass());
+            if (scanned != null) {
+                Object raw = scanned.invoke(options, category);
+                if (raw instanceof Number n) {
+                    return formatVolumePercent(n.doubleValue());
                 }
             }
             Object holder = resolveSoundVolumeOption(options, loader, categoryName);
@@ -252,6 +261,35 @@ public final class OptionsBridge {
             AgentLog.error("readSoundVolume failed: " + categoryName, e);
             return "";
         }
+    }
+
+    private static Method findCategoryVolumeMethod(Class<?> optionsClass, Class<?> categoryClass) {
+        Method named = null;
+        Method fallback = null;
+        for (Method method : optionsClass.getMethods()) {
+            if (method.getParameterCount() != 1) {
+                continue;
+            }
+            if (!categoryClass.isAssignableFrom(method.getParameterTypes()[0])) {
+                continue;
+            }
+            Class<?> ret = method.getReturnType();
+            if (ret != float.class && ret != Float.class && ret != double.class && ret != Double.class) {
+                continue;
+            }
+            if ("getCategorySoundVolume".equals(method.getName()) || "method_1630".equals(method.getName())) {
+                named = method;
+                break;
+            }
+            if ("getSoundVolume".equals(method.getName())) {
+                fallback = method;
+            }
+        }
+        Method chosen = named != null ? named : fallback;
+        if (chosen != null) {
+            chosen.setAccessible(true);
+        }
+        return chosen;
     }
 
     private static String formatVolumePercent(double raw) {

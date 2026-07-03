@@ -23,22 +23,30 @@ void* JvmtiAllocate(jlong size) {
     return buffer;
 }
 
-void JNICALL ClassFileLoadHook(jvmtiEnv* /*jvmti_env*/, JNIEnv* /*env*/, jclass class_being_redefined,
+void JNICALL ClassFileLoadHook(jvmtiEnv* /*jvmti_env*/, JNIEnv* env, jclass class_being_redefined,
                                jobject /*loader*/, const char* name, jobject /*protection_domain*/,
                                jint class_data_len, const unsigned char* class_data, jint* /*new_class_data_len*/,
                                unsigned char** /*new_class_data*/) {
-    // RetransformClasses fires this hook synchronously for the single class we
-    // asked about; capture bytes for whichever class is being redefined.
-    if (g_targetClazz && class_being_redefined && class_data && class_data_len > 0 && !g_classBytes) {
-        g_classBytes = const_cast<unsigned char*>(class_data);
-        g_classBytesLen = class_data_len;
-        if (name) {
-            char buf[256]{};
-            std::snprintf(buf, sizeof(buf), "[hook] ClassFileLoadHook captured %s (%d bytes)", name, class_data_len);
-            wchar_t wbuf[512]{};
-            MultiByteToWideChar(CP_UTF8, 0, buf, -1, wbuf, 512);
-            jvm::SpikeLog(wbuf);
-        }
+    if (!g_targetClazz || !class_being_redefined || !class_data || class_data_len <= 0 || g_classBytes) {
+        return;
+    }
+    if (!env || !env->IsSameObject(class_being_redefined, g_targetClazz)) {
+        return;
+    }
+    jvmtiEnv* jvmti = jvm::GetJvmti();
+    unsigned char* copy = nullptr;
+    if (!jvmti || jvmti->Allocate(class_data_len, &copy) != JVMTI_ERROR_NONE || !copy) {
+        return;
+    }
+    std::memcpy(copy, class_data, static_cast<size_t>(class_data_len));
+    g_classBytes = copy;
+    g_classBytesLen = class_data_len;
+    if (name) {
+        char buf[256]{};
+        std::snprintf(buf, sizeof(buf), "[hook] ClassFileLoadHook captured %s (%d bytes)", name, class_data_len);
+        wchar_t wbuf[512]{};
+        MultiByteToWideChar(CP_UTF8, 0, buf, -1, wbuf, 512);
+        jvm::SpikeLog(wbuf);
     }
 }
 
@@ -101,6 +109,11 @@ jbyteArray JNICALL Java_com_myiui_agent_NativeBridge_getClassBytes(JNIEnv* env, 
     jbyteArray output = env->NewByteArray(g_classBytesLen);
     if (output) {
         env->SetByteArrayRegion(output, 0, g_classBytesLen, reinterpret_cast<const jbyte*>(g_classBytes));
+    }
+    if (g_classBytes) {
+        jvm::GetJvmti()->Deallocate(g_classBytes);
+        g_classBytes = nullptr;
+        g_classBytesLen = 0;
     }
     g_targetClazz = nullptr;
     return output;
@@ -165,17 +178,17 @@ void JNICALL Java_com_myiui_agent_NativeBridge_pushHudState(JNIEnv* env, jclass 
     NativeState::Instance().PushHud(state);
 }
 
-void JNICALL Java_com_myiui_agent_NativeBridge_pushChatState(JNIEnv* env, jclass /*clazz*/, jbyteArray packed) {
+void JNICALL Java_com_myiui_agent_NativeBridge_pushTabListState(JNIEnv* env, jclass /*clazz*/, jbyteArray packed) {
     if (!packed) {
         return;
     }
     const jsize len = env->GetArrayLength(packed);
-    if (len < static_cast<jsize>(sizeof(myiui::shared::ChatState))) {
+    if (len < static_cast<jsize>(sizeof(myiui::shared::TabListState))) {
         return;
     }
-    myiui::shared::ChatState state{};
+    myiui::shared::TabListState state{};
     env->GetByteArrayRegion(packed, 0, static_cast<jsize>(sizeof(state)), reinterpret_cast<jbyte*>(&state));
-    NativeState::Instance().PushChat(state);
+    NativeState::Instance().PushTabList(state);
 }
 
 void JNICALL Java_com_myiui_agent_NativeBridge_pushVideoFrame(JNIEnv* env, jclass /*clazz*/, jbyteArray rgba, jint width,
@@ -245,8 +258,8 @@ jint RegisterBridgeNatives(JNIEnv* env, jclass nativeBridgeClass) {
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushIslandState)},
         {const_cast<char*>("pushHudState"), const_cast<char*>("([B)V"),
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushHudState)},
-        {const_cast<char*>("pushChatState"), const_cast<char*>("([B)V"),
-         reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushChatState)},
+        {const_cast<char*>("pushTabListState"), const_cast<char*>("([B)V"),
+         reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushTabListState)},
         {const_cast<char*>("pushVideoFrame"), const_cast<char*>("([BIII)V"),
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushVideoFrame)},
     };

@@ -7,10 +7,7 @@ import java.util.List;
 
 final class BridgePacker {
     private static final int HUD_STATE_SIZE = 108;
-    private static final int CHAT_USER_LEN = 32;
-    private static final int CHAT_TEXT_LEN = 192;
-    private static final int CHAT_MAX_MESSAGES = 16;
-    private static final int CHAT_STATE_SIZE = 6 + CHAT_MAX_MESSAGES * (CHAT_USER_LEN + CHAT_TEXT_LEN);
+    private static final int TAB_LIST_STATE_SIZE = 824;
 
     private BridgePacker() {}
 
@@ -50,22 +47,21 @@ final class BridgePacker {
         return buf.array();
     }
 
-    static byte[] packChat(List<String[]> messages, boolean visible, int chatSeq) {
-        ByteBuffer buf = ByteBuffer.allocate(CHAT_STATE_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+    static byte[] packTabList(PlayerListBridge.TabSnapshot snap, int tabSeq) {
+        ByteBuffer buf = ByteBuffer.allocate(TAB_LIST_STATE_SIZE).order(ByteOrder.LITTLE_ENDIAN);
         buf.put((byte) 1);
-        buf.put((byte) (visible ? 1 : 0));
-        int count = Math.min(CHAT_MAX_MESSAGES, messages == null ? 0 : messages.size());
-        buf.put((byte) count);
+        buf.put(snap.tabVisible ? (byte) 1 : (byte) 0);
+        buf.put((byte) Math.min(255, snap.playerCount));
         buf.put((byte) 0);
-        buf.putShort((short) (chatSeq & 0xFFFF));
-        for (int i = 0; i < count; i++) {
-            String[] msg = messages.get(i);
-            writeFixed(buf, msg.length > 0 ? msg[0] : "", CHAT_USER_LEN);
-            writeFixed(buf, msg.length > 1 ? msg[1] : "", CHAT_TEXT_LEN);
-        }
-        for (int i = count; i < CHAT_MAX_MESSAGES; i++) {
-            writeFixed(buf, "", CHAT_USER_LEN);
-            writeFixed(buf, "", CHAT_TEXT_LEN);
+        buf.putShort((short) (tabSeq & 0xFFFF));
+        buf.putShort((short) 0);
+        writeFixed(buf, snap.header, 48);
+        for (int i = 0; i < 32; i++) {
+            String name = i < snap.names.length && snap.names[i] != null ? snap.names[i] : "";
+            writeFixed(buf, name, 20);
+            short ping = i < snap.pings.length ? snap.pings[i] : (short) 0;
+            buf.putShort(ping);
+            buf.putShort((short) 0);
         }
         return buf.array();
     }

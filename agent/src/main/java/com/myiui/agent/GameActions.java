@@ -310,48 +310,7 @@ public final class GameActions {
             if (entry == null) {
                 throw new IllegalStateException("Server not found: " + id);
             }
-            Object parent = requireCurrentScreen(client);
-            Class<?> parentClass = findClass("net.minecraft.client.gui.screen.Screen", "net.minecraft.class_437");
-            Class<?> addressClass = findClass("net.minecraft.client.network.ServerAddress", "net.minecraft.class_639");
-            Class<?> infoClass = findClass("net.minecraft.client.network.ServerInfo", "net.minecraft.class_642");
-            Class<?> connectClass = findClass("net.minecraft.client.gui.screen.multiplayer.ConnectScreen",
-                    "net.minecraft.class_412");
-            Class<?> mpClass = findClass("net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen",
-                    "net.minecraft.class_500");
-
-            Object address = ReflectUtil.findStaticMethod(addressClass, "parse", "method_2950", String.class)
-                    .invoke(null, entry.address);
-
-            Object info = createServerInfo(infoClass, entry.name, entry.address);
-            Class<?> cookieClass = findClass("net.minecraft.client.network.CookieStorage", "net.minecraft.class_9112");
-            Class<?> screenClass = findClass("net.minecraft.client.gui.screen.Screen", "net.minecraft.class_437");
-            Class<?> clientClass = findClass("net.minecraft.client.MinecraftClient", "net.minecraft.class_310");
-
-            Object cookieStorage = resolveCookieStorage(client);
-            if (cookieStorage == null) {
-                cookieStorage = createEmptyCookieStorage(cookieClass);
-            }
-
-            Object connectParent = parent;
-            if (!mpClass.isInstance(parent)) {
-                java.lang.reflect.Constructor<?> mpCtor = mpClass.getConstructor(parentClass);
-                connectParent = mpCtor.newInstance(parent);
-            }
-
-            boolean connected = false;
-            try {
-                Method connect = ReflectUtil.findStaticMethod(connectClass, "connect", "method_36877", screenClass,
-                        clientClass, addressClass, infoClass, boolean.class, cookieClass);
-                connect.invoke(null, connectParent, client, address, info, false, cookieStorage);
-                connected = true;
-            } catch (ReflectiveOperationException ignored) {
-            }
-            if (!connected) {
-                Method connect = ReflectUtil.findStaticMethod(connectClass, "connect", "method_2130", clientClass,
-                        addressClass, infoClass, cookieClass);
-                connect.invoke(null, client, address, info, cookieStorage);
-            }
-            AgentLog.info("CONNECT_SERVER: " + entry.name + " -> " + entry.address);
+            VanillaServerConnect.connect(client, entry.name, entry.address);
         });
     }
 
@@ -1299,7 +1258,7 @@ public final class GameActions {
         return java.nio.file.Paths.get(appData, ".minecraft", "saves");
     }
 
-    private static void invokeSetScreen(Object client, Object screen) throws ReflectiveOperationException {
+    static void invokeSetScreen(Object client, Object screen) throws ReflectiveOperationException {
         Class<?> screenClass = findClass("net.minecraft.client.gui.screen.Screen", "net.minecraft.class_437");
         Method setScreen = ReflectUtil.findInstanceMethod(client.getClass(), "setScreen", "method_1507", screenClass);
         setScreen.invoke(client, screen);

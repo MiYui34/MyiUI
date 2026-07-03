@@ -15,27 +15,39 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 网易云 API HTTP 客户端：封装对 api-enhanced 服务的 GET/POST 调用。
  * 所有网络调用阻塞，调用方必须在独立线程执行（绝不在渲染线程调用）。
+ * 内部使用单线程执行器串行化所有 HTTP 请求，防止并发连接耗尽 Windows socket 缓冲区。
  */
 public final class NetEaseClient {
     private NetEaseClient() {}
 
+    /** 单线程执行器：串行化所有 API 请求，避免 socket 耗尽 */
+    private static final ExecutorService API_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "MyiUI-ApiClient");
+        t.setDaemon(true);
+        return t;
+    });
+
     /** GET 请求，返回顶层 JsonObject（去除 api-enhanced 的 {code, msg, ...} 外壳失败时返回 null）。 */
     public static JsonObject get(String endpoint, Map<String, String> params) throws IOException {
-        return request("GET", endpoint, params, false);
+        return requestSync("GET", endpoint, params, false);
     }
 
     /** GET 请求但不检查 API code 字段（用于 login/qr/check 等特殊接口，code 是业务状态码而非成功码）。 */
     public static JsonObject getRaw(String endpoint, Map<String, String> params) throws IOException {
-        return requestRaw("GET", endpoint, params, false);
+        return requestRawSync("GET", endpoint, params, false);
     }
 
     /** POST 请求。 */
     public static JsonObject post(String endpoint, Map<String, String> params) throws IOException {
-        return request("POST", endpoint, params, true);
+        return requestSync("POST", endpoint, params, true);
     }
 
     /** GET 但返回原始字节数组（用于下载封面/二维码图片）。 */
@@ -61,6 +73,33 @@ public final class NetEaseClient {
             return readJsonResponse(conn);
         } finally {
             conn.disconnect();
+        }
+    }
+
+    /** 串行化执行请求，防止并发 HTTP 连接耗尽 socket */
+    private static JsonObject requestSync(String method, String endpoint, Map<String, String> params, boolean isPost)
+            throws IOException {
+        try {
+            return API_EXECUTOR.submit(() -> request(method, endpoint, params, isPost)).get(15, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) throw (IOException) cause;
+            throw new IOException("API request failed: " + (cause != null ? cause.getMessage() : "unknown"), cause);
+        } catch (Exception e) {
+            throw new IOException("API request interrupted or timed out: " + e.getMessage(), e);
+        }
+    }
+
+    private static JsonObject requestRawSync(String method, String endpoint, Map<String, String> params, boolean isPost)
+            throws IOException {
+        try {
+            return API_EXECUTOR.submit(() -> requestRaw(method, endpoint, params, isPost)).get(15, TimeUnit.SECONDS);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof IOException) throw (IOException) cause;
+            throw new IOException("API request failed: " + (cause != null ? cause.getMessage() : "unknown"), cause);
+        } catch (Exception e) {
+            throw new IOException("API request interrupted or timed out: " + e.getMessage(), e);
         }
     }
 
@@ -118,6 +157,8 @@ public final class NetEaseClient {
         conn.setReadTimeout(NetEaseConfig.requestTimeoutMs());
         conn.setRequestProperty("User-Agent", "MyiUI-NetEase/1.0");
         conn.setRequestProperty("Accept", "application/json");
+        // 强制关闭 keep-alive，防止 socket 堆积耗尽缓冲区
+        conn.setRequestProperty("Connection", "close");
         // 注入 cookie（登录后）
         String cookie = LoginManager.cookieHeader();
         if (cookie != null && !cookie.isEmpty()) {
@@ -127,6 +168,7 @@ public final class NetEaseClient {
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         }
         conn.setInstanceFollowRedirects(true);
+        conn.setUseCaches(false);
         return conn;
     }
 

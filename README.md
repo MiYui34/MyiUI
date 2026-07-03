@@ -24,7 +24,7 @@ myiui-injector.exe  →  LoadLibraryW(myiui-overlay.dll)
 
 ## 构建
 
-一键：
+一键（增量构建，不删 build 目录）：
 
 ```powershell
 .\build.bat
@@ -34,12 +34,14 @@ myiui-injector.exe  →  LoadLibraryW(myiui-overlay.dll)
 
 ```powershell
 cd agent
-gradle jar    # 同时生成 overlay/src/preload/preloader_class.h
+gradle jar          # 同时生成 overlay/src/preload/preloader_class.h（纯 Java，无 PS1 依赖）
 
 cd ..
 cmake -S . -B build -A x64
 cmake --build build --config Release
 ```
+
+**环境要求**：JDK 21+、Gradle 8+、CMake 3.20+、MSVC x64（VS 2022 或 Build Tools）
 
 产物：
 - `agent/build/libs/myiui-agent-1.0.0.jar`
@@ -59,7 +61,7 @@ cmake --build build --config Release
 或 CLI：`.\build\injector\Release\myiui-injector.exe --cli [PID]`
 
 4. 注入后主菜单显示 MyiUI UI；顶栏 **Manager** 可选择 MP4/图片背景
-5. 调试日志：`%LOCALAPPDATA%\MyiUI\spike.log`
+5. 调试日志：`%LOCALAPPDATA%\MyiUI\agent.log`（Agent）、`spike.log`（注入/Overlay）
 
 设计预览：浏览器打开 `design/injector/v1/preview/index.html`
 
@@ -124,4 +126,3 @@ Agent 会自动在后台 `node app.js` 启动服务。
 
 - `quality`：`standard` / `exhigh` / `lossless`（lossless 需 api-enhanced 启用 `ENABLE_FLAC`）
 - 登录态 cookie 明文保存在 `%LOCALAPPDATA%\MyiUI\netease\cookie.txt`，请勿在公共设备使用
-- 调试日志：`%LOCALAPPDATA%\MyiUI\agent.log`

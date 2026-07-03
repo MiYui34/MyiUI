@@ -15,6 +15,7 @@ enum class IslandMode : uint8_t {
     Expanded = 2,
     Collapsing = 3,
     Lyrics = 4,
+    TabList = 5,
 };
 
 enum class IslandSlotId : uint8_t {
@@ -96,34 +97,37 @@ struct HudState {
 
 inline constexpr size_t kHudStateSize = sizeof(HudState);
 
+inline constexpr size_t kTabPlayerNameLen = 20;
+inline constexpr size_t kTabMaxPlayers = 32;
+inline constexpr size_t kTabHeaderLen = 48;
+
+#pragma pack(push, 1)
+struct TabPlayerEntry {
+    char name[kTabPlayerNameLen];
+    int16_t ping;
+    uint16_t reserved;
+};
+
+struct TabListState {
+    uint8_t valid;
+    uint8_t tab_visible;
+    uint8_t player_count;
+    uint8_t reserved0;
+    uint16_t tab_seq;
+    uint16_t reserved16;
+    char header[kTabHeaderLen];
+    TabPlayerEntry players[kTabMaxPlayers];
+};
+#pragma pack(pop)
+
+inline constexpr size_t kTabListStateSize = sizeof(TabListState);
+
 enum HudFlags : uint8_t {
     HudFlagLowHealth = 1u << 0,
     HudFlagDamaged = 1u << 1,
     HudFlagAppleSkin = 1u << 2,
     HudFlagShowSaturation = 1u << 3,
 };
-
-inline constexpr size_t kChatUserLen = 32;
-inline constexpr size_t kChatTextLen = 192;
-inline constexpr size_t kChatMaxMessages = 16;
-
-#pragma pack(push, 1)
-struct ChatMessage {
-    char user[kChatUserLen];
-    char text[kChatTextLen];
-};
-
-struct ChatState {
-    uint8_t valid;
-    uint8_t visible;
-    uint8_t msg_count;
-    uint8_t reserved;
-    uint16_t chat_seq;
-    ChatMessage messages[kChatMaxMessages];
-};
-#pragma pack(pop)
-
-inline constexpr size_t kChatStateSize = sizeof(ChatState);
 
 inline constexpr uint32_t kMaxFrameBytes = 1920u * 1080u * 4u;
 
@@ -144,10 +148,6 @@ inline constexpr bool IsHudScreen(ScreenKind kind) {
 }
 
 inline constexpr bool IsIslandScreen(ScreenKind kind) {
-    return kind == ScreenKind::InGame;
-}
-
-inline constexpr bool IsChatScreen(ScreenKind kind) {
     return kind == ScreenKind::InGame;
 }
 

@@ -14,11 +14,7 @@
 #include "ui/menu_app.h"
 #include "ui/clickgui/clickgui.h"
 #include "ui/island/island_renderer.h"
-#include "ui/chat/chat_renderer.h"
 #include "ui/music/music_panel.h"
-#include "render/liquid_glass_shader.h"
-#include "ui/hud/liquid_glass_panel.h"
-#include "render/liquid_glass_shader.h"
 
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -69,6 +65,7 @@ static uint32_t g_lastFrameW = 0;
 static uint32_t g_lastFrameH = 0;
 static uint32_t g_lastIslandSeq = 0;
 static uint8_t g_lastIslandMode = 255;
+static int g_leaveGameGlCooldown = 0;
 
 void OverlayInvalidateBackgroundTexture() {
     std::lock_guard lock(g_frameMutex);
@@ -184,6 +181,10 @@ static void RenderOverlayFrame(HWND hwnd) {
         wchar_t buf[96]{};
         swprintf_s(buf, L"screen broadcast kind=%u seq=%u", static_cast<unsigned>(screenKind), screenSeq);
         myiui::overlay::OverlayLog(buf);
+        if (g_lastScreenKind == myiui::shared::ScreenKind::InGame
+            && screenKind == myiui::shared::ScreenKind::MainMenu) {
+            g_leaveGameGlCooldown = 10;
+        }
         g_lastScreenSeq = screenSeq;
         g_lastScreenKind = screenKind;
     }
@@ -262,6 +263,12 @@ static void RenderOverlayFrame(HWND hwnd) {
         return;
     }
 
+    if (g_leaveGameGlCooldown > 0) {
+        g_leaveGameGlCooldown--;
+        g_overlayRendering = false;
+        return;
+    }
+
     if (!hwnd) {
         g_overlayRendering = false;
         return;
@@ -301,12 +308,6 @@ static void RenderOverlayFrame(HWND hwnd) {
         InitUiFonts(g_config.theme, scale);
     }
 
-    if (islandActive) {
-        myiui::ui::hud::SetInGameLiquidGlassShader(false);
-    } else {
-        myiui::ui::hud::SetInGameLiquidGlassShader(false);
-    }
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -327,15 +328,11 @@ static void RenderOverlayFrame(HWND hwnd) {
             MenuAppRender(ctx);
         } else if (islandActive || clickguiOpen) {
             const float dt = ImGui::GetIO().DeltaTime;
-            // ClickGui 打开时隐藏所有游戏内组件（灵动岛/HUD/聊天）
+            // ClickGui 打开时隐藏所有游戏内组件（灵动岛）
             if (!clickguiOpen) {
                 if (islandActive && myiui::ui::clickgui::IslandVisible()) {
                     myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
                                                     static_cast<float>(viewport[3]), dt);
-                }
-                if (myiui::ui::clickgui::ChatVisible()) {
-                    myiui::ui::chat::ChatRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
-                                                static_cast<float>(viewport[3]), dt);
                 }
             }
             myiui::ui::clickgui::Render(static_cast<float>(viewport[2]),

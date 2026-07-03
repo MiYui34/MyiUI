@@ -2,20 +2,16 @@ package com.myiui.agent;
 
 public final class SharedState {
     private static final int HUD_STATE_SIZE = 108;
-    private static final int CHAT_USER_LEN = 32;
-    private static final int CHAT_TEXT_LEN = 192;
-    private static final int CHAT_MAX_MESSAGES = 16;
-    private static final int CHAT_MESSAGE_SIZE = CHAT_USER_LEN + CHAT_TEXT_LEN;
-    private static final int CHAT_STATE_SIZE = 6 + CHAT_MAX_MESSAGES * CHAT_MESSAGE_SIZE;
     private static final int MAX_FRAME_BYTES = 1920 * 1080 * 4;
 
     private static volatile boolean menuActive;
     private static volatile boolean overlayAck;
+    private static volatile boolean vanillaConnectInProgress;
     private static volatile byte currentScreenKind = ScreenKind.NONE;
     private static int screenSeq = 0;
     private static int hudSeq = 0;
     private static int islandSeq = 0;
-    private static int chatSeq = 0;
+    private static int tabSeq = 0;
     private static int writeBufferIndex = 0;
     private static int frameSequence = 0;
 
@@ -41,6 +37,10 @@ public final class SharedState {
                 }
             }
         }
+        if (screen != null && isClientInWorld() && !ClassUtil.isTitleScreenInstance(screen)) {
+            broadcastInGameIfNeeded();
+            return;
+        }
         byte kind = ScreenKind.classify(screen);
         boolean active = kind == ScreenKind.MAIN_MENU;
         if (kind == currentScreenKind && active == menuActive) {
@@ -53,12 +53,27 @@ public final class SharedState {
         currentScreenKind = kind;
         screenSeq++;
         writeUiState(kind, active, screenSeq);
-        if (kind != ScreenKind.IN_GAME) {
+        if (kind != ScreenKind.IN_GAME && !isClientInWorld()) {
             clearHudState();
             clearIslandState();
+            clearTabListState();
         }
         AgentLog.info("broadcast screen seq=" + screenSeq + " kind=" + ScreenKind.label(kind)
                 + (screen == null ? "" : " class=" + screen.getClass().getName()));
+    }
+
+    public static synchronized void beginVanillaConnect() {
+        vanillaConnectInProgress = true;
+        menuActive = false;
+        VideoBackground.suspendForGameScreen();
+    }
+
+    public static synchronized void endVanillaConnect() {
+        vanillaConnectInProgress = false;
+    }
+
+    public static boolean isVanillaConnectInProgress() {
+        return vanillaConnectInProgress;
     }
 
     public static synchronized void broadcastInGame() {
@@ -70,7 +85,31 @@ public final class SharedState {
         currentScreenKind = ScreenKind.IN_GAME;
         screenSeq++;
         writeUiState(ScreenKind.IN_GAME, false, screenSeq);
+        vanillaConnectInProgress = false;
         clearHudState();
+        try {
+            Object client = GameActions.resolveClientForBridge();
+            int fps = 0;
+            if (client != null) {
+                for (String[] field : new String[][]{
+                        {"currentFps", "field_1738"},
+                        {"field_1738", "currentFps"},
+                }) {
+                    try {
+                        Object v = ReflectUtil.getField(client, field[0], field[1]);
+                        if (v instanceof Number n) {
+                            fps = n.intValue();
+                            break;
+                        }
+                    } catch (ReflectiveOperationException ignored) {
+                    }
+                }
+            }
+            writeIslandState(IslandManager.buildSnapshot(fps));
+        } catch (Throwable t) {
+            AgentLog.error("broadcastInGame island seed failed", t);
+        }
+        AgentLog.info("broadcast screen seq=" + screenSeq + " kind=InGame");
     }
 
     public static synchronized void writeIslandState(IslandManager.IslandSnapshot snap) {
@@ -99,17 +138,6 @@ public final class SharedState {
                 "", "", "", new byte[16], 0);
     }
 
-    public static synchronized void writeChatState(java.util.List<String[]> messages, boolean visible) {
-        if (messages == null) {
-            return;
-        }
-        NativeBridge.pushChatState(BridgePacker.packChat(messages, visible, ++chatSeq));
-    }
-
-    private static void clearChatState() {
-        NativeBridge.pushChatState(new byte[CHAT_STATE_SIZE]);
-    }
-
     public static synchronized void broadcastInGameIfNeeded() {
         if (currentScreenKind != ScreenKind.IN_GAME) {
             broadcastInGame();
@@ -119,6 +147,15 @@ public final class SharedState {
     public static synchronized void writeHudState(Object client, Object player, byte flags) {
         HudBridge.HudSnapshot snap = HudBridge.snapshot(client, player);
         NativeBridge.pushHudState(BridgePacker.packHud(snap, flags, ++hudSeq));
+    }
+
+    public static synchronized void writeTabListState(PlayerListBridge.TabSnapshot snap) {
+        NativeBridge.pushTabListState(BridgePacker.packTabList(snap, ++tabSeq));
+    }
+
+    private static void clearTabListState() {
+        PlayerListBridge.TabSnapshot empty = new PlayerListBridge.TabSnapshot();
+        NativeBridge.pushTabListState(BridgePacker.packTabList(empty, 0));
     }
 
     private static void clearHudState() {
@@ -156,6 +193,9 @@ public final class SharedState {
         if (!ClassUtil.isTitleScreenInstance(screen)) {
             return;
         }
+        if (vanillaConnectInProgress) {
+            return;
+        }
         boolean alreadyActive = menuActive && currentScreenKind == ScreenKind.MAIN_MENU;
         ScreenHelper.clearScreenChildren(screen);
         if (!alreadyActive) {
@@ -180,6 +220,27 @@ public final class SharedState {
 
     public static void syncMenuWithClient(Object client) {
         try {
+            if (vanillaConnectInProgress) {
+                Object world = ReflectUtil.getWorld(client);
+                if (world != null) {
+                    endVanillaConnect();
+                    broadcastInGameIfNeeded();
+                    return;
+                }
+                Object screen = ReflectUtil.getCurrentScreen(client);
+                if (screen == null) {
+                    return;
+                }
+                if (ClassUtil.isTitleScreenInstance(screen)) {
+                    return;
+                }
+                byte expected = ScreenKind.classify(screen);
+                if (expected != currentScreenKind) {
+                    broadcastScreen(screen);
+                }
+                return;
+            }
+
             Object world = ReflectUtil.getWorld(client);
             if (world != null) {
                 Object screen;
@@ -255,17 +316,25 @@ public final class SharedState {
             if (screen != null && isTransientNetworkScreen(screen)) {
                 return;
             }
+            if (screen != null) {
+                AgentLog.info("disconnect completed — screen=" + screen.getClass().getName());
+            } else {
+                AgentLog.info("disconnect completed — screen=null");
+            }
         } catch (ReflectiveOperationException ignored) {
         }
-        AgentLog.info("disconnect completed — syncing menu state");
+        endVanillaConnect();
         scheduleMenuSync(client);
     }
 
     private static boolean isTransientNetworkScreen(Object screen) {
         String name = screen.getClass().getName();
-        return name.contains("ConnectScreen") || name.contains("class_412")
-                || name.contains("ProgressScreen") || name.contains("class_435")
-                || name.contains("DownloadingTerrainScreen") || name.contains("class_434");
+        return name.contains("ConnectScreen") || name.contains("class_412") || name.contains("class_435")
+                || name.contains("ProgressScreen") || name.contains("class_433")
+                || name.contains("DownloadingTerrainScreen") || name.contains("class_434")
+                || name.contains("LevelLoadingScreen") || name.contains("GenericDowntimeScreen")
+                || name.contains("MultiplayerScreen") || name.contains("class_500")
+                || name.contains("DisconnectedScreen") || name.contains("class_419");
     }
 
     public static void onScreenLifecycleEvent() {
@@ -352,6 +421,15 @@ public final class SharedState {
     }
 
     public static void onSetScreen(Object screen) {
+        if (screen != null && isTransientNetworkScreen(screen)) {
+            vanillaConnectInProgress = true;
+            menuActive = false;
+        } else if (screen == null) {
+            Object client = GameActions.resolveClientForBridge();
+            if (client != null && ReflectUtil.getWorld(client) != null) {
+                endVanillaConnect();
+            }
+        }
         broadcastScreen(screen);
         captureDisconnectReason(screen);
         if (screen == null) {
@@ -359,6 +437,9 @@ public final class SharedState {
             return;
         }
         if (ClassUtil.isTitleScreenInstance(screen)) {
+            if (vanillaConnectInProgress) {
+                endVanillaConnect();
+            }
             onTitleScreenOpened(screen);
             return;
         }
@@ -413,6 +494,15 @@ public final class SharedState {
 
     private static void ensureMapped() {
         // v2: JNI bridge, no mmap.
+    }
+
+    private static boolean isClientInWorld() {
+        try {
+            Object client = GameActions.resolveClientForBridge();
+            return client != null && ReflectUtil.getWorld(client) != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static void writeUiState(byte kind, boolean active, int seq) {

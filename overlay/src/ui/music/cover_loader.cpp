@@ -8,9 +8,12 @@
 #include <gl/GL.h>
 
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #pragma comment(lib, "winhttp.lib")
@@ -23,24 +26,35 @@ struct CoverEntry {
     GLuint tex = 0;
     int w = 0;
     int h = 0;
+    long long lastUsed = 0;  // 帧计数，用于 LRU 淘汰
     bool valid() const { return tex != 0 && w > 0 && h > 0; }
 };
 
 struct PendingCover {
-    std::mutex mutex;
     std::string url;
     std::vector<uint8_t> rgba;
     int w = 0;
     int h = 0;
-    bool ready = false;
 };
 
 std::mutex g_cacheMutex;
 std::unordered_map<std::string, CoverEntry> g_cache;
-PendingCover g_pending;
-std::atomic<bool> g_downloading{false};
-std::string g_requestedUrl;
-constexpr size_t kMaxCacheEntries = 24;
+constexpr size_t kMaxCacheEntries = 256;
+static long long g_frameCounter = 0;
+
+// 下载队列 + 线程池
+std::mutex g_queueMutex;
+std::deque<std::string> g_downloadQueue;
+std::unordered_set<std::string> g_queuedUrls;  // 去重
+std::condition_variable g_queueCv;
+std::atomic<bool> g_shutdown{false};
+std::vector<std::thread> g_workers;
+std::atomic<int> g_activeWorkers{0};
+constexpr int kMaxConcurrentDownloads = 4;
+
+// 已下载完成、待上传纹理的队列
+std::mutex g_pendingMutex;
+std::deque<PendingCover> g_pendingUploads;
 
 std::wstring Utf8ToWide(const std::string& s) {
     if (s.empty()) return {};
@@ -78,6 +92,10 @@ bool DownloadUrlBytes(const std::string& url, std::vector<uint8_t>& out) {
     if (!session) return false;
     DWORD redirectPolicy = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
     WinHttpSetOption(session, WINHTTP_OPTION_REDIRECT_POLICY, &redirectPolicy, sizeof(redirectPolicy));
+    // 缩短超时，封面是小文件不需要长等待
+    DWORD timeout = 8000;
+    WinHttpSetOption(session, WINHTTP_OPTION_CONNECT_TIMEOUT, &timeout, sizeof(timeout));
+    WinHttpSetOption(session, WINHTTP_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
 
     HINTERNET connect = WinHttpConnect(session, host, port, 0);
     if (!connect) { WinHttpCloseHandle(session); return false; }
@@ -112,7 +130,6 @@ void UploadTexture(const std::vector<uint8_t>& rgba, int w, int h, GLuint& outTe
     GLuint newTex = 0;
     glGenTextures(1, &newTex);
     glBindTexture(GL_TEXTURE_2D, newTex);
-    // Minecraft / ImGui 可能修改 unpack 状态，上传前必须重置否则出现斜纹
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -123,6 +140,47 @@ void UploadTexture(const std::vector<uint8_t>& rgba, int w, int h, GLuint& outTe
     outTex = newTex;
 }
 
+void WorkerLoop() {
+    while (true) {
+        std::string url;
+        {
+            std::unique_lock<std::mutex> lock(g_queueMutex);
+            g_queueCv.wait(lock, [] { return g_shutdown.load() || !g_downloadQueue.empty(); });
+            if (g_shutdown.load() && g_downloadQueue.empty()) return;
+            if (g_downloadQueue.empty()) continue;
+            url = g_downloadQueue.front();
+            g_downloadQueue.pop_front();
+            g_activeWorkers.fetch_add(1);
+        }
+
+        std::vector<uint8_t> bytes;
+        std::vector<uint8_t> rgba;
+        int w = 0, h = 0;
+        bool ok = false;
+        if (DownloadUrlBytes(url, bytes)) {
+            ok = LoadImageRgbaFromBytes(bytes.data(), bytes.size(), rgba, w, h);
+        }
+
+        if (ok) {
+            std::lock_guard<std::mutex> lock(g_pendingMutex);
+            g_pendingUploads.push_back({url, std::move(rgba), w, h});
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(g_queueMutex);
+            g_queuedUrls.erase(url);
+            g_activeWorkers.fetch_sub(1);
+        }
+    }
+}
+
+void EnsureWorkers() {
+    if (!g_workers.empty()) return;
+    for (int i = 0; i < kMaxConcurrentDownloads; ++i) {
+        g_workers.emplace_back(WorkerLoop);
+    }
+}
+
 }  // namespace
 
 void CoverRequest(const std::string& url) {
@@ -131,70 +189,58 @@ void CoverRequest(const std::string& url) {
         std::lock_guard<std::mutex> lock(g_cacheMutex);
         if (g_cache.count(url) && g_cache[url].valid()) return;
     }
-    if (url == g_requestedUrl && g_downloading.load()) return;
-    g_requestedUrl = url;
-    g_downloading.store(true);
-
-    std::thread([url]() {
-        std::vector<uint8_t> bytes;
-        std::vector<uint8_t> rgba;
-        int w = 0, h = 0;
-        bool ok = false;
-        if (DownloadUrlBytes(url, bytes)) {
-            ok = LoadImageRgbaFromBytes(bytes.data(), bytes.size(), rgba, w, h);
-        }
-        std::lock_guard<std::mutex> lock(g_pending.mutex);
-        g_pending.ready = ok;
-        if (ok) {
-            g_pending.url = url;
-            g_pending.rgba = std::move(rgba);
-            g_pending.w = w;
-            g_pending.h = h;
-        } else if (g_requestedUrl == url) {
-            g_requestedUrl.clear();
-        }
-        g_downloading.store(false);
-    }).detach();
+    {
+        std::lock_guard<std::mutex> lock(g_queueMutex);
+        if (g_queuedUrls.count(url)) return;  // Already queued
+        g_queuedUrls.insert(url);
+        g_downloadQueue.push_back(url);
+    }
+    EnsureWorkers();
+    g_queueCv.notify_one();
 }
 
 void CoverProcessPending() {
-    PendingCover copy;
+    g_frameCounter++;
+    std::deque<PendingCover> uploads;
     {
-        std::lock_guard<std::mutex> lock(g_pending.mutex);
-        if (!g_pending.ready) return;
-        copy.ready = true;
-        copy.url = g_pending.url;
-        copy.rgba = std::move(g_pending.rgba);
-        copy.w = g_pending.w;
-        copy.h = g_pending.h;
-        g_pending.ready = false;
-        g_pending.url.clear();
+        std::lock_guard<std::mutex> lock(g_pendingMutex);
+        uploads.swap(g_pendingUploads);
     }
-    if (!copy.ready) return;
+    if (uploads.empty()) return;
+
     std::lock_guard<std::mutex> lock(g_cacheMutex);
-    while (g_cache.size() >= kMaxCacheEntries) {
-        auto it = g_cache.begin();
-        if (it->second.tex != 0) glDeleteTextures(1, &it->second.tex);
-        g_cache.erase(it);
+    for (auto& pc : uploads) {
+        // LRU 淘汰：优先淘汰 lastUsed 最小的（最久未使用的）
+        while (g_cache.size() >= kMaxCacheEntries) {
+            auto oldest = g_cache.begin();
+            for (auto it = g_cache.begin(); it != g_cache.end(); ++it) {
+                if (it->second.lastUsed < oldest->second.lastUsed) {
+                    oldest = it;
+                }
+            }
+            if (oldest->second.tex != 0) glDeleteTextures(1, &oldest->second.tex);
+            g_cache.erase(oldest);
+        }
+        auto& entry = g_cache[pc.url];
+        if (entry.tex != 0) glDeleteTextures(1, &entry.tex);
+        UploadTexture(pc.rgba, pc.w, pc.h, entry.tex);
+        entry.w = pc.w;
+        entry.h = pc.h;
+        entry.lastUsed = g_frameCounter;
     }
-    auto& entry = g_cache[copy.url];
-    if (entry.tex != 0) glDeleteTextures(1, &entry.tex);
-    UploadTexture(copy.rgba, copy.w, copy.h, entry.tex);
-    entry.w = copy.w;
-    entry.h = copy.h;
 }
 
 CoverTexture CoverGet(const std::string& url) {
     std::lock_guard<std::mutex> lock(g_cacheMutex);
     auto it = g_cache.find(url);
     if (it == g_cache.end()) return CoverTexture{};
+    it->second.lastUsed = g_frameCounter;  // 标记为最近使用
     return CoverTexture{it->second.tex, it->second.w, it->second.h};
 }
 
 CoverTexture CoverFromBase64Png(const std::string& b64) {
     if (b64.empty()) return CoverTexture{};
-    
-    // 剥除 data:image/png;base64, 前缀，防止解码乱码破坏 PNG 头文件
+
     std::string data = b64;
     size_t pos = data.find("base64,");
     if (pos != std::string::npos) {
@@ -209,11 +255,11 @@ CoverTexture CoverFromBase64Png(const std::string& b64) {
         if (c == '/') return 63;
         return -1;
     };
-    
+
     std::vector<uint8_t> bytes;
     bytes.reserve(data.size() * 3 / 4);
     int accum = 0, bits = 0;
-    
+
     for (char c : data) {
         if (c == '=' || c == '\n' || c == '\r' || c == ' ') continue;
         int v = val(c);
@@ -225,7 +271,7 @@ CoverTexture CoverFromBase64Png(const std::string& b64) {
             bytes.push_back(static_cast<uint8_t>((accum >> bits) & 0xFF));
         }
     }
-    
+
     if (bytes.empty()) return CoverTexture{};
     std::vector<uint8_t> rgba;
     int w = 0, h = 0;
@@ -238,6 +284,13 @@ CoverTexture CoverFromBase64Png(const std::string& b64) {
 }
 
 void CoverShutdown() {
+    g_shutdown.store(true);
+    g_queueCv.notify_all();
+    for (auto& t : g_workers) {
+        if (t.joinable()) t.join();
+    }
+    g_workers.clear();
+
     std::lock_guard<std::mutex> lock(g_cacheMutex);
     for (auto& kv : g_cache) {
         if (kv.second.tex != 0) glDeleteTextures(1, &kv.second.tex);

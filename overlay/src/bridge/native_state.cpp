@@ -29,9 +29,9 @@ void NativeState::PushHud(const myiui::shared::HudState& state) {
     hud_ = state;
 }
 
-void NativeState::PushChat(const myiui::shared::ChatState& state) {
+void NativeState::PushTabList(const myiui::shared::TabListState& state) {
     std::lock_guard lock(mutex_);
-    chat_ = state;
+    tab_list_ = state;
 }
 
 void NativeState::PushVideoFrame(const uint8_t* rgba, int width, int height, int frameIndex) {
@@ -70,12 +70,12 @@ bool NativeState::ReadHud(myiui::shared::HudState& out) const {
     return true;
 }
 
-bool NativeState::ReadChat(myiui::shared::ChatState& out) const {
+bool NativeState::ReadTabList(myiui::shared::TabListState& out) const {
     std::lock_guard lock(mutex_);
-    if (!chat_.valid) {
+    if (!tab_list_.valid) {
         return false;
     }
-    out = chat_;
+    out = tab_list_;
     return true;
 }
 

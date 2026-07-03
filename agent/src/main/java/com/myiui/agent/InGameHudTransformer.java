@@ -13,6 +13,8 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Skips vanilla health/hunger drawing; keeps vanilla hotbar items. */
 public final class InGameHudTransformer implements ClassFileTransformer {
@@ -29,6 +31,7 @@ public final class InGameHudTransformer implements ClassFileTransformer {
 
             int hookedRender = 0;
             int skippedParts = 0;
+            List<String> skippedNames = new ArrayList<>();
             for (MethodNode method : node.methods) {
                 if (isMainRender(method)) {
                     injectRenderHead(method);
@@ -36,6 +39,7 @@ public final class InGameHudTransformer implements ClassFileTransformer {
                 } else if (shouldSkipHudPart(method)) {
                     injectEarlyReturn(method);
                     skippedParts++;
+                    skippedNames.add(method.name);
                 }
             }
 
@@ -46,7 +50,8 @@ public final class InGameHudTransformer implements ClassFileTransformer {
 
             SafeClassWriter writer = new SafeClassWriter(reader, ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, loader);
             node.accept(writer);
-            AgentLog.info("Transformed InGameHud: " + className + " (render=" + hookedRender + ", skip=" + skippedParts + ")");
+            AgentLog.info("Transformed InGameHud: " + className + " (render=" + hookedRender + ", skip=" + skippedParts
+                    + ", skipped=" + String.join(",", skippedNames) + ")");
             return writer.toByteArray();
         } catch (Throwable t) {
             AgentLog.error("InGameHud transform error for " + className, t);
@@ -80,7 +85,8 @@ public final class InGameHudTransformer implements ClassFileTransformer {
                 || "renderAirBubbles".equals(name) || "method_1764".equals(name)
                 || "renderAir".equals(name) || "method_1765".equals(name)
                 || "renderExperienceBar".equals(name) || "method_1758".equals(name)
-                || "renderStatusEffectOverlay".equals(name) || "method_1769".equals(name);
+                || "renderStatusEffectOverlay".equals(name) || "method_1769".equals(name)
+                || "renderPlayerList".equals(name) || "method_55804".equals(name);
     }
 
     private static void injectRenderHead(MethodNode method) {

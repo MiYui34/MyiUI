@@ -110,10 +110,25 @@ public final class NetEaseModels {
             if (msStr != null && msStr.length() == 2) ms *= 10;
             line.timeMs = min * 60_000L + sec * 1000L + ms;
             line.text = m.group(4).trim();
-            if (!line.text.isEmpty()) out.add(line);
+            if (line.text.isEmpty() || isCreditLine(line.text)) continue;
+            out.add(line);
         }
         out.sort(java.util.Comparator.comparingLong(l -> l.timeMs));
         return out;
+    }
+
+    /** 过滤 LRC 内嵌的制作信息行（作曲/作词等），避免 UI 显示乱码元数据。 */
+    private static boolean isCreditLine(String text) {
+        if (text == null || text.isEmpty()) return true;
+        String lower = text.toLowerCase();
+        if (lower.contains("作詞") || lower.contains("作词") || lower.contains("作曲")
+                || lower.contains("編曲") || lower.contains("编曲") || lower.contains("监棚")
+                || lower.contains("producer") || lower.contains("lyricist") || lower.contains("composer")) {
+            return true;
+        }
+        // "key : value" 形式且含多个 / 分隔的名字，通常是制作名单
+        if (text.matches(".*[：:].*[/／].*")) return true;
+        return false;
     }
 
     public static List<Comment> parseComments(JsonArray arr) {

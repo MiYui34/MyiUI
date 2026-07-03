@@ -412,6 +412,19 @@ bool ConsumeSuppressEscUp() {
 void Render(float viewportW, float viewportH, float dt) {
     if (!g_open && g_openAnim < 0.01f) return;
 
+    // GUI 刚打开时清除鼠标按下状态，防止游戏中的鼠标按下残留导致首次点击无效
+    static bool s_wasOpen = false;
+    static int s_openClearFrames = 0;
+    if (g_open && !s_wasOpen) {
+        s_openClearFrames = 3;
+    }
+    s_wasOpen = g_open;
+    if (s_openClearFrames > 0) {
+        ImGui::GetIO().MouseDown[0] = false;
+        ImGui::GetIO().MouseDown[1] = false;
+        s_openClearFrames--;
+    }
+
     float target = g_open ? 1.f : 0.f;
     g_openAnim = LerpF(std::min(1.f, dt * 10.f), g_openAnim, target);
     if (!g_open && g_openAnim < 0.01f) { g_openAnim = 0.f; return; }

@@ -29,6 +29,7 @@ using PFNGLUNIFORM1FPROC = void(APIENTRY*)(GLint, GLfloat);
 using PFNGLUNIFORM1IPROC = void(APIENTRY*)(GLint, GLint);
 using PFNGLUNIFORM2FPROC = void(APIENTRY*)(GLint, GLfloat, GLfloat);
 using PFNGLUNIFORM3FPROC = void(APIENTRY*)(GLint, GLfloat, GLfloat, GLfloat);
+using PFNGLUNIFORM4FPROC = void(APIENTRY*)(GLint, GLfloat, GLfloat, GLfloat, GLfloat);
 using PFNGLACTIVETEXTUREPROC = void(APIENTRY*)(GLenum);
 using PFNGLBINDATTRIBLOCATIONPROC = void(APIENTRY*)(GLuint, GLuint, const char*);
 using PFNGLBINDBUFFERPROC = void(APIENTRY*)(GLenum, GLuint);
@@ -60,6 +61,7 @@ PFNGLUNIFORM1FPROC pGlUniform1f = nullptr;
 PFNGLUNIFORM1IPROC pGlUniform1i = nullptr;
 PFNGLUNIFORM2FPROC pGlUniform2f = nullptr;
 PFNGLUNIFORM3FPROC pGlUniform3f = nullptr;
+PFNGLUNIFORM4FPROC pGlUniform4f = nullptr;
 PFNGLACTIVETEXTUREPROC pGlActiveTexture = nullptr;
 PFNGLBINDATTRIBLOCATIONPROC pGlBindAttribLocation = nullptr;
 PFNGLBINDBUFFERPROC pGlBindBuffer = nullptr;
@@ -104,6 +106,7 @@ bool GlLoadExtensions() {
     pGlUniform1i = LoadFn<PFNGLUNIFORM1IPROC>("glUniform1i");
     pGlUniform2f = LoadFn<PFNGLUNIFORM2FPROC>("glUniform2f");
     pGlUniform3f = LoadFn<PFNGLUNIFORM3FPROC>("glUniform3f");
+    pGlUniform4f = LoadFn<PFNGLUNIFORM4FPROC>("glUniform4f");
     pGlActiveTexture = LoadFn<PFNGLACTIVETEXTUREPROC>("glActiveTexture");
     pGlBindAttribLocation = LoadFn<PFNGLBINDATTRIBLOCATIONPROC>("glBindAttribLocation");
     pGlBindBuffer = LoadFn<PFNGLBINDBUFFERPROC>("glBindBuffer");
@@ -192,6 +195,9 @@ void GlUniform2f(GLint loc, GLfloat x, GLfloat y) {
 }
 void GlUniform3f(GLint loc, GLfloat x, GLfloat y, GLfloat z) {
     if (pGlUniform3f) pGlUniform3f(loc, x, y, z);
+}
+void GlUniform4f(GLint loc, GLfloat x, GLfloat y, GLfloat z, GLfloat w) {
+    if (pGlUniform4f) pGlUniform4f(loc, x, y, z, w);
 }
 void GlActiveTexture(GLenum tex) {
     if (pGlActiveTexture) pGlActiveTexture(tex);

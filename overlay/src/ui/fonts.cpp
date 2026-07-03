@@ -67,6 +67,18 @@ std::vector<std::wstring> BoldFontCandidates() {
     };
 }
 
+std::vector<std::wstring> CjkFontCandidates() {
+    return {
+        L"msyh.ttc",
+        L"msyhbd.ttc",
+        L"msyhl.ttc",
+        L"simhei.ttf",
+        L"simsun.ttc",
+        L"msjh.ttc",
+        L"msjhbd.ttc",
+    };
+}
+
 bool IsAlibabaPuHuiTiFace(const std::wstring& face) {
     if (face.empty()) return false;
     const std::wstring lower = [&] {
@@ -98,8 +110,11 @@ std::wstring ResolveFontPath(const std::wstring& faceName, bool bold) {
         const std::wstring path = FindFirstExisting(dirs, bold ? BoldFontCandidates() : RegularFontCandidates());
         if (!path.empty()) return path;
         if (!bold) {
-            return FindFirstExisting(dirs, BoldFontCandidates());
+            const std::wstring alt = FindFirstExisting(dirs, BoldFontCandidates());
+            if (!alt.empty()) return alt;
         }
+        const std::wstring cjk = FindFirstExisting(dirs, CjkFontCandidates());
+        if (!cjk.empty()) return cjk;
     }
 
     wchar_t winDir[MAX_PATH]{};
@@ -119,10 +134,12 @@ std::wstring ResolveFontPath(const std::wstring& faceName, bool bold) {
         const std::wstring path = fontsDir + entry.file;
         if (FileExists(path)) return path;
     }
+    const std::wstring cjk = FindFirstExisting(dirs, CjkFontCandidates());
+    if (!cjk.empty()) return cjk;
     return FindFirstExisting(dirs, RegularFontCandidates());
 }
 
-ImFont* LoadFont(const std::wstring& path, float sizePx) {
+ImFont* LoadFont(const std::wstring& path, float sizePx, int fontNo = 0) {
     if (!FileExists(path)) return nullptr;
     char utf8[MAX_PATH * 3]{};
     WideCharToMultiByte(CP_UTF8, 0, path.c_str(), -1, utf8, sizeof(utf8), nullptr, nullptr);
@@ -131,8 +148,18 @@ ImFont* LoadFont(const std::wstring& path, float sizePx) {
     cfg.OversampleH = 2;
     cfg.OversampleV = 2;
     cfg.PixelSnapH = true;
-    const ImWchar* ranges = ImGui::GetIO().Fonts->GetGlyphRangesChineseFull();
-    return ImGui::GetIO().Fonts->AddFontFromFileTTF(utf8, sizePx, &cfg, ranges);
+    cfg.FontNo = fontNo;
+
+    ImFontGlyphRangesBuilder rangeBuilder;
+    rangeBuilder.AddRanges(ImGui::GetIO().Fonts->GetGlyphRangesChineseFull());
+    rangeBuilder.AddRanges(ImGui::GetIO().Fonts->GetGlyphRangesJapanese());
+    rangeBuilder.AddRanges(ImGui::GetIO().Fonts->GetGlyphRangesKorean());
+    rangeBuilder.AddRanges(ImGui::GetIO().Fonts->GetGlyphRangesCyrillic());
+    rangeBuilder.AddRanges(ImGui::GetIO().Fonts->GetGlyphRangesDefault());
+    static ImVector<ImWchar> s_ranges;
+    s_ranges.clear();
+    rangeBuilder.BuildRanges(&s_ranges);
+    return ImGui::GetIO().Fonts->AddFontFromFileTTF(utf8, sizePx, &cfg, s_ranges.Data);
 }
 
 }  // namespace
@@ -153,7 +180,11 @@ bool InitUiFonts(const ThemeConfig& theme, float uiScale) {
     const std::wstring regularPath = ResolveFontPath(theme.font_regular, false);
     const std::wstring boldPath = ResolveFontPath(theme.font_bold, true);
     if (regularPath.empty()) {
-        myiui::overlay::OverlayLog(L"Font missing: place Alibaba PuHuiTi in assets/fonts/");
+        myiui::overlay::OverlayLog(L"Font missing: no CJK font found");
+    } else if (regularPath.find(L"msyh") != std::wstring::npos ||
+               regularPath.find(L"simhei") != std::wstring::npos ||
+               regularPath.find(L"simsun") != std::wstring::npos) {
+        myiui::overlay::OverlayLog(L"Font loaded (system CJK fallback).");
     } else {
         myiui::overlay::OverlayLog(L"Font loaded.");
     }

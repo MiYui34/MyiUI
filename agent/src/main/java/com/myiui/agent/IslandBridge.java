@@ -18,8 +18,6 @@ public final class IslandBridge {
             IslandManager.removeExpired();
             int fps = readFps(client);
             SharedState.writeIslandState(IslandManager.buildSnapshot(fps));
-            ChatReader.readMessages(client);
-            ChatManager.writeState();
         } catch (Throwable t) {
             AgentLog.error("IslandBridge.onClientTick failed", t);
         }

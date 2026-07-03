@@ -51,6 +51,7 @@ public final class HudBridge {
             }
             SharedState.broadcastInGameIfNeeded();
             SharedState.writeHudState(client, player, buildFlags(player));
+            PlayerListBridge.onHudRender(client);
         } catch (Throwable t) {
             AgentLog.error("HudBridge.onHudRender failed", t);
         }

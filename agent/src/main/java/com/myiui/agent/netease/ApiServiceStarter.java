@@ -45,8 +45,8 @@ public final class ApiServiceStarter {
         try {
             String base = NetEaseConfig.baseUrl();
             HttpURLConnection conn = (HttpURLConnection) URI.create(base + "/banner?type=0").toURL().openConnection();
-            conn.setConnectTimeout(2000);
-            conn.setReadTimeout(2000);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
             conn.setRequestMethod("GET");
             int code = conn.getResponseCode();
             conn.disconnect();
@@ -61,6 +61,21 @@ public final class ApiServiceStarter {
      * 否则依次尝试：独立 exe → Node.js + app.js → 自动下载 exe。
      */
     public static boolean ensureRunning() {
+        // 如果进程仍在运行，先检查是否可达（不急于重启）
+        if (apiProcess != null && apiProcess.isAlive()) {
+            if (isReachable()) {
+                if (!started) {
+                    AgentLog.info("NetEase API service already running at " + NetEaseConfig.baseUrl());
+                    started = true;
+                }
+                return true;
+            }
+            // 进程活着但不可达 — 可能只是忙，等待重试而非重启
+            AgentLog.info("NetEase: API process alive but not reachable, waiting...");
+            return false;
+        }
+
+        // 进程不存在，检查是否有外部服务在跑
         if (isReachable()) {
             if (!started) {
                 AgentLog.info("NetEase API service already running at " + NetEaseConfig.baseUrl());

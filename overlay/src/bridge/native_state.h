@@ -30,13 +30,13 @@ public:
     void PushScreen(uint8_t kind, uint32_t seq, bool overlayActive, bool islandActive, bool overlayAck);
     void PushIsland(const myiui::shared::IslandState& state);
     void PushHud(const myiui::shared::HudState& state);
-    void PushChat(const myiui::shared::ChatState& state);
+    void PushTabList(const myiui::shared::TabListState& state);
     void PushVideoFrame(const uint8_t* rgba, int width, int height, int frameIndex);
 
     bool ReadScreen(ScreenState& out) const;
     bool ReadIsland(myiui::shared::IslandState& out) const;
     bool ReadHud(myiui::shared::HudState& out) const;
-    bool ReadChat(myiui::shared::ChatState& out) const;
+    bool ReadTabList(myiui::shared::TabListState& out) const;
     bool PeekFrame(uint32_t& frameIndex, uint32_t& width, uint32_t& height) const;
     bool ReadFrame(std::vector<uint8_t>& rgba, uint32_t& width, uint32_t& height, uint32_t& frameIndex);
 
@@ -52,7 +52,7 @@ private:
     ScreenState screen_{};
     myiui::shared::IslandState island_{};
     myiui::shared::HudState hud_{};
-    myiui::shared::ChatState chat_{};
+    myiui::shared::TabListState tab_list_{};
     VideoFrameState video_{};
 };
 
