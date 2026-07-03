@@ -1,0 +1,7 @@
+{
+  "spring_stiffness": 280,
+  "spring_damping": 22,
+  "overshoot": 1.06,
+  "slot_stagger_ms": 40,
+  "reduced_motion_ms": 180
+}

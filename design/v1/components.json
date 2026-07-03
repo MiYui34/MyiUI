@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "name": "MyUI Menu Components",
+    "version": "1.1.0",
+    "canvas": { "width": 1920, "height": 1080 },
+    "description": "In-game overlay menu component dimensions — glass aesthetic"
+  },
+  "glassButton": {
+    "minHeight": 44,
+    "paddingX": 18,
+    "paddingY": 10,
+    "iconSize": 24,
+    "gap": 14,
+    "fontSize": 18,
+    "fontWeight": 500,
+    "borderWidth": 2,
+    "borderRadius": 14,
+    "blur": "20px",
+    "variants": {
+      "default": { "background": "glass-bg" },
+      "primary": { "background": "accent-72", "color": "#fff" },
+      "danger": { "hoverBackground": "rgba(220,80,60,0.15)" },
+      "compact": { "minHeight": 40, "fontSize": 14, "paddingX": 14 }
+    }
+  },
+  "screenShell": {
+    "width": 1920,
+    "height": 1080,
+    "paddingTop": 32,
+    "paddingBottom": 24,
+    "paddingInline": 48,
+    "profileColumnWidth": 280,
+    "contentPanelWidth": 720,
+    "columnGap": 48,
+    "contentPanelMinHeight": 640,
+    "contentPanelPadding": 24,
+    "contentPanelRadius": 20,
+    "contentPanelBlur": "20px",
+    "topBarHeight": 44
+  },
+  "navList": {
+    "width": 320,
+    "itemGap": 10,
+    "itemMinHeight": 44,
+    "itemPaddingX": 18,
+    "itemPaddingY": 10,
+    "iconSize": 24,
+    "fontSize": 18,
+    "borderRadius": 14
+  },
+  "settingRow": {
+    "minHeight": 52,
+    "paddingX": 16,
+    "paddingY": 14,
+    "gap": 12,
+    "borderWidth": 2,
+    "borderRadius": 14,
+    "labelFontSize": 15,
+    "descFontSize": 12,
+    "controlGap": 8,
+    "variants": {
+      "toggle": { "controlWidth": 48, "controlHeight": 28 },
+      "slider": { "controlWidth": 140, "trackHeight": 4, "thumbSize": 18 },
+      "enum": { "chipMinWidth": 72, "chipHeight": 32 },
+      "keybind": { "keyWidth": 120, "keyHeight": 36 },
+      "pack_list": { "rowHeight": 56, "iconSize": 40 }
+    }
+  },
+  "worldCard": {
+    "width": "100%",
+    "minHeight": 72,
+    "padding": 16,
+    "gap": 14,
+    "borderWidth": 2,
+    "borderRadius": 14,
+    "thumbnailSize": 48,
+    "thumbnailRadius": 10,
+    "titleFontSize": 16,
+    "metaFontSize": 12,
+    "badgeHeight": 22
+  },
+  "serverCard": {
+    "width": "100%",
+    "minHeight": 64,
+    "padding": 14,
+    "gap": 12,
+    "borderWidth": 2,
+    "borderRadius": 14,
+    "iconSize": 36,
+    "titleFontSize": 15,
+    "pingFontSize": 11,
+    "playerCountFontSize": 12,
+    "statusDotSize": 8
+  },
+  "profileCard": {
+    "width": 280,
+    "padding": 20,
+    "avatarSize": 48,
+    "avatarRadius": 12,
+    "blur": "22px",
+    "borderRadius": 20
+  }
+}

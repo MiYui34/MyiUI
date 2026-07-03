@@ -1,0 +1,24 @@
+{
+  "id": "add_server",
+  "title": "添加服务器",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回服务器列表", "target": "multiplayer" }
+  },
+  "sections": [
+    {
+      "id": "server",
+      "label": "服务器信息",
+      "rows": [
+        { "id": "server_name", "type": "text", "label": "服务器名称", "default": "", "placeholder": "例如：我的服务器" },
+        { "id": "server_address", "type": "text", "label": "服务器地址", "default": "", "placeholder": "host 或 host:端口" }
+      ]
+    }
+  ],
+  "actions": [
+    { "id": "cancel", "label": "取消", "variant": "default" },
+    { "id": "save", "label": "保存", "variant": "primary" }
+  ],
+  "components": ["formField", "glassButton"]
+}

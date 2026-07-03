@@ -1,0 +1,193 @@
+{
+  "$schema": "myiui-hud-spec/v1",
+  "mod": "MyiUI",
+  "minecraftVersion": "1.21.6",
+  "loader": "Fabric",
+  "surface": "in-game-hud",
+  "designSystem": "glass-v2",
+  "baselineResolution": {
+    "width": 1920,
+    "height": 1080,
+    "aspectRatio": "16:9"
+  },
+  "safeAreas": {
+    "bottom": { "px": 16, "vmin": "1.48vmin", "range": [12, 20] },
+    "left": { "px": 20, "vmin": "1.04vmin" }
+  },
+  "scaleFactor": {
+    "description": "GUI Scale 2–4 等比缩放，通过 --myiui-hud-scale CSS 变量注入",
+    "guiScale2": 0.85,
+    "guiScale3": 1.0,
+    "guiScale4": 1.15,
+    "formula": "baseSize * scaleFactor * (screenHeight / 1080)"
+  },
+  "colorTokens": {
+    "accent": { "hex": "#5AC8FA", "usage": "选中描边、氧气条、tooltip 高亮" },
+    "glassBg": { "value": "rgba(255,255,255,0.08)", "usage": "HUD 面板背景" },
+    "glassBgStrong": { "value": "rgba(255,255,255,0.12)", "usage": "tooltip、强调面板" },
+    "glassBorder": { "value": "rgba(255,255,255,0.22)", "usage": "面板描边" },
+    "danger": { "oklch": "62% 0.18 25", "usage": "低血、低耐久" },
+    "success": { "oklch": "68% 0.14 155", "usage": "生命满血、耐久良好" },
+    "absorption": { "hex": "#E8C547", "usage": "伤害吸收叠加层" },
+    "saturation": { "value": "rgba(232,197,71,0.55)", "usage": "AppleSkin 饱和度层" },
+    "hungerFill": { "value": "暖橙/琥珀渐变", "cssVar": "--myiui-hunger-fill" }
+  },
+  "typography": {
+    "display": "'Alibaba PuHuiTi', 'PingFang SC'",
+    "body": "'PingFang SC', 'Alibaba PuHuiTi'",
+    "mono": "'JetBrains Mono', 'SF Mono'",
+    "captionSize": 11,
+    "tooltipSize": 11
+  },
+  "effects": {
+    "blur": { "range": [18, 24], "default": 20, "unit": "px" },
+    "radiusMd": 14,
+    "radiusSm": 8
+  },
+  "zIndexLayers": {
+    "hudBackground": 100,
+    "statusBars": 110,
+    "hotbar": 120,
+    "tooltip": 200,
+    "demoControls": 300
+  },
+  "screens": {
+    "status": "screens/hud_status.json",
+    "hotbar": "screens/hud_hotbar.json"
+  },
+  "stylesheets": {
+    "hud": "css/hud-system.css",
+    "menu": "css/menu-system.css"
+  },
+  "dataBindings": {
+    "health": {
+      "current": "player.getHealth()",
+      "max": "player.getMaxHealth()",
+      "absorption": "player.getAbsorptionAmount()",
+      "cssVars": ["--health-pct", "--absorption-pct"]
+    },
+    "hunger": {
+      "foodLevel": "player.getFoodStats().getFoodLevel()",
+      "saturationLevel": "player.getFoodStats().getSaturationLevel()",
+      "exhaustionLevel": "player.getFoodStats().getExhaustionLevel()",
+      "cssVars": ["--hunger-pct", "--saturation-pct", "--exhaustion-pct"],
+      "dataAttrs": ["data-hunger", "data-saturation", "data-exhaustion"]
+    },
+    "hotbar": {
+      "selectedSlot": "player.getInventory().selectedSlot",
+      "slots": "player.getInventory().main (0–8)"
+    }
+  },
+  "appleskinCompat": {
+    "configKey": "myiui.hud.appleskinCompat",
+    "default": true,
+    "modes": {
+      "enabled": {
+        "showSaturationLayer": true,
+        "showExhaustionIndicator": true,
+        "showFoodTooltip": true,
+        "dataAttr": "data-appleskin=\"true\""
+      },
+      "disabled": {
+        "showSaturationLayer": false,
+        "showExhaustionIndicator": false,
+        "showFoodTooltip": false,
+        "dataAttr": "data-appleskin=\"false\""
+      }
+    },
+    "integrationNotes": "饱和度层独立 DOM/CSS 层，不与饥饿 fill 合并；Fabric mixin 或 AppleSkin API 回调更新 CSS 变量"
+  },
+  "stateVariants": [
+    "health-full",
+    "health-low",
+    "health-damaged",
+    "health-absorption",
+    "hunger-full",
+    "hunger-half",
+    "saturation-full",
+    "saturation-none",
+    "appleskin-on",
+    "appleskin-off",
+    "armor-visible",
+    "hotbar-selected"
+  ],
+  "previewArtifact": "hud-gameplay.html",
+  "liquidGlass": {
+    "reference": "https://github.com/Jacquesqwq/LiquidGlassShader",
+    "shaderVersion": "v2",
+    "previewApproximation": "CSS backdrop-filter + 伪元素 Fresnel / noise / chroma · 非真实 UV 折射",
+    "runtimePipeline": [
+      "1. 截取当前帧 FBO（游戏画面 behind HUD）",
+      "2. 高斯模糊 pass（blurIterations × blurRadius，可选 downScale）",
+      "3. single-pass fragment shader（liquidGlassV2Clear.frag | liquidGlassV2Tinted.frag）",
+      "4. 无 shader 能力时降级为 flat glass（.myiui-glass）"
+    ],
+    "fabricIntegration": {
+      "renderer": "MyiuiLiquidGlassRenderer",
+      "blurPass": "MyiuiHudBlurPass.updateBlurTexture(iterations, blurRadius, downScale)",
+      "drawClear": "LiquidGlass.drawClear(x, y, w, h, powerFactor, noise, refractionPower, glowWeight, glowBias, glowEdge0, glowEdge1)",
+      "drawTinted": "LiquidGlass.drawTinted(x, y, w, h, powerFactor, noise, refractionPower, tintR, tintG, tintB, tintStrength, chromaStrength, darkness)",
+      "shaderLanguage": "GLSL 1.20（参考仓库，适配 Fabric 1.21.6 RenderSystem）",
+      "fragmentShaders": {
+        "clear": "liquidGlassV2Clear.frag",
+        "tinted": "liquidGlassV2Tinted.frag"
+      }
+    },
+    "modes": {
+      "flat": {
+        "cssClass": "myiui-glass",
+        "description": "原有 Glass v2 毛玻璃 · 降级回退"
+      },
+      "liquidClear": {
+        "cssClass": "myiui-liquid-glass myiui-liquid-glass--clear",
+        "shader": "liquidGlassV2Clear",
+        "description": "更通透 · 强边缘 directional glow"
+      },
+      "liquidTinted": {
+        "cssClass": "myiui-liquid-glass myiui-liquid-glass--tinted",
+        "shader": "liquidGlassV2Tinted",
+        "description": "HUD 默认 · 冰蓝 tint 对齐 accent #5AC8FA",
+        "default": true
+      }
+    },
+    "uniformMapping": {
+      "uBlurTex": { "source": "blurFramebuffer.framebufferTexture", "note": "高斯模糊后的背景采样" },
+      "uPowerFactor": { "cssVar": "--myiui-lg-power", "default": 4, "range": [2, 8], "note": "sdSuperellipse 超椭圆指数 · drawClear 中亦作 radius 传入" },
+      "blurIterations": { "default": 1, "range": [0, 5], "java": "IntProperty blur-iterations" },
+      "blurRadius": { "cssVar": "--myiui-lg-blur-radius", "default": 2, "range": [0, 12], "unit": "px", "java": "FloatProperty blur-radius" },
+      "blurDownScale": { "default": 0.5, "range": [0.1, 1], "java": "FloatProperty blur-downscale" },
+      "uNoise": { "cssVar": "--myiui-lg-noise", "default": 0.03, "range": [0, 0.3], "java": "FloatProperty noise", "note": "磨砂微颗粒 uNoise" },
+      "uRefractionPower": { "cssVar": "--myiui-lg-refraction", "default": 0.75, "range": [-1, 10], "java": "FloatProperty refraction-power", "note": "pow(f(dist), refraction) 背景偏移强度" },
+      "uChromaStrength": { "cssVar": "--myiui-lg-chroma", "default": 0.001, "range": [0, 0.01], "java": "FloatProperty chroma-strength", "modes": ["liquidTinted"], "note": "fresnel × chromaDir RGB 分离" },
+      "uTintColor": { "default": [0.35, 0.78, 1.0], "hexApprox": "#5AC8FA", "java": "tint-r/g/b", "note": "Tinted 冰蓝 · 对齐 --myiui-accent" },
+      "uTintStrength": { "cssVar": "--myiui-lg-tint-strength", "default": 0.12, "range": [0, 1], "java": "FloatProperty tint-strength" },
+      "uDarkness": { "cssVar": "--myiui-lg-darkness", "default": 0, "nightDefault": 0.35, "java": "night blend · adaptiveTintColor", "dataAttr": "data-darkness" },
+      "uGlowWeight": { "cssVar": "--myiui-lg-glow-weight", "default": 0.3, "modes": ["liquidClear"], "java": "FloatProperty glow-weight" },
+      "uGlowBias": { "cssVar": "--myiui-lg-glow-bias", "default": 0, "modes": ["liquidClear"] },
+      "uGlowEdge0": { "cssVar": "--myiui-lg-glow-edge0", "default": 0.06, "modes": ["liquidClear"] },
+      "uGlowEdge1": { "cssVar": "--myiui-lg-glow-edge1", "default": 0, "modes": ["liquidClear"] }
+    },
+    "surfaceDefaults": {
+      "statusPanel": { "mode": "liquidTinted", "powerFactor": 4 },
+      "hotbarTray": { "mode": "liquidTinted", "powerFactor": 4 },
+      "hotbarSlot": { "mode": "liquidTinted", "powerFactor": 3.5, "compact": true },
+      "hotbarSlotSelected": { "fresnelBoost": 1.6, "note": "选中槽位加强边缘 Fresnel · CSS ::after opacity 提升" },
+      "appleskinTooltip": { "mode": "liquidTinted", "powerFactor": 4 }
+    },
+    "cssClasses": {
+      "base": "myiui-liquid-glass",
+      "compact": "myiui-liquid-glass-compact",
+      "clear": "myiui-liquid-glass--clear",
+      "tinted": "myiui-liquid-glass--tinted",
+      "noise": "myiui-liquid-glass__noise"
+    },
+    "visualFeatures": [
+      "sdSuperellipse 超椭圆轮廓（uPowerFactor）",
+      "背景折射 refraction（f(dist)^uRefractionPower · 预览 CSS transform 近似）",
+      "磨砂 frost（uNoise 微颗粒）",
+      "色散 chromatic（fresnel × uChromaStrength · 边缘 RGB 分离）",
+      "Fresnel 边缘 accent 冷光（中心更透）",
+      "Tinted 冰蓝染色（uTintColor + uTintStrength + uDarkness）"
+    ]
+  }
+}

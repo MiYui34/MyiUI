@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 控制</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport"><div id="canvas">
+    <div class="panorama" aria-hidden="true"></div><div class="overlay" aria-hidden="true"></div>
+    <div class="screen">
+      <header class="top-bar"><div class="logo"><div class="logo-mark">M</div>MyUI<span class="version">控制</span></div></header>
+      <main class="main-layout">
+        <article class="profile-card">
+          <div class="profile-header"><div class="avatar">SB</div><div class="profile-info"><h2>Steve_Builder</h2><div class="uuid">a3f2…8c1d</div></div></div>
+          <div class="status-row"><span class="status-dot"></span><span class="status-text">按键绑定</span></div>
+        </article>
+        <section class="content-panel">
+          <header class="panel-header">
+            <a href="options-hub.html" class="back-btn" data-nav="options-hub.html"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M38 14L22 32l16 18"/></svg>返回</a>
+            <h1>控制</h1>
+          </header>
+          <div class="panel-body">
+            <div class="section-label">鼠标</div>
+            <div class="setting-row"><div><label>鼠标灵敏度</label></div><div class="slider-wrap"><input type="range" min="1" max="200" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>反转 Y 轴</label></div><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+            <div class="setting-row"><div><label>离散滚动</label></div><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+            <div class="section-label">移动</div>
+            <div class="setting-row"><div><label>向前移动</label></div><button type="button" class="keybind-btn">W</button></div>
+            <div class="setting-row"><div><label>向后移动</label></div><button type="button" class="keybind-btn">S</button></div>
+            <div class="setting-row"><div><label>向左移动</label></div><button type="button" class="keybind-btn">A</button></div>
+            <div class="setting-row"><div><label>向右移动</label></div><button type="button" class="keybind-btn">D</button></div>
+            <div class="setting-row"><div><label>跳跃</label></div><button type="button" class="keybind-btn">空格</button></div>
+            <div class="setting-row"><div><label>潜行</label></div><button type="button" class="keybind-btn">Shift</button></div>
+            <div class="setting-row"><div><label>冲刺</label></div><button type="button" class="keybind-btn">Ctrl</button></div>
+            <div class="section-label">游戏</div>
+            <div class="setting-row"><div><label>物品栏</label></div><button type="button" class="keybind-btn">E</button></div>
+            <div class="setting-row"><div><label>丢弃物品</label></div><button type="button" class="keybind-btn">Q</button></div>
+            <div class="setting-row"><div><label>打开聊天</label></div><button type="button" class="keybind-btn">T</button></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div></div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

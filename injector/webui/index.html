@@ -1,0 +1,1253 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MyiUI Injector · 启动器</title>
+  <style>
+    :root {
+      --bg:      oklch(16% 0.035 235);
+      --surface: oklch(22% 0.04 235);
+      --fg:      oklch(96% 0.008 240);
+      --muted:   oklch(62% 0.025 235);
+      --border:  oklch(48% 0.04 235 / 0.35);
+      --accent:  oklch(68% 0.16 220);
+      --success:   oklch(62% 0.16 145);
+      --danger:    oklch(62% 0.18 25);
+      --warn:      oklch(72% 0.14 85);
+      --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+      --fg-soft: color-mix(in oklch, var(--fg) 6%, transparent);
+      --glass: color-mix(in oklch, var(--surface) 72%, transparent);
+      --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --radius: 14px;
+      --radius-lg: 16px;
+      --win-w: 920px;
+      --win-h: 640px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, color-mix(in oklch, var(--accent) 12%, transparent), transparent),
+        radial-gradient(ellipse 60% 50% at 85% 80%, color-mix(in oklch, var(--accent) 8%, transparent), transparent),
+        var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.5;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    body.host-native {
+      padding: 0;
+      min-height: 100%;
+      overflow: hidden;
+    }
+    body.host-native .desktop-window {
+      width: 100%;
+      height: 100vh;
+      min-height: 100%;
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+    }
+    .titlebar { -webkit-app-region: drag; app-region: drag; }
+    .titlebar-btn, .titlebar-actions button { -webkit-app-region: no-drag; app-region: no-drag; }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    button:focus-visible,
+    .process-table tbody tr:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    button:focus:not(:focus-visible) { outline: none; }
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+    .desktop-window {
+      width: min(var(--win-w), 100%);
+      height: min(var(--win-h), calc(100vh - 48px));
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      background: var(--glass);
+      backdrop-filter: blur(24px);
+      box-shadow: 0 24px 80px color-mix(in oklch, var(--bg) 60%, black);
+      overflow: hidden;
+    }
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: color-mix(in oklch, var(--surface) 90%, transparent);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .titlebar-left { display: flex; align-items: center; gap: 10px; }
+    .win-dots { display: flex; gap: 7px; }
+    .win-dots span {
+      width: 11px; height: 11px; border-radius: 50%;
+      background: color-mix(in oklch, var(--muted) 40%, transparent);
+      border: 1px solid var(--border);
+    }
+    .win-dots span:first-child { background: color-mix(in oklch, oklch(62% 0.18 25) 70%, transparent); }
+    .win-dots span:nth-child(2) { background: color-mix(in oklch, oklch(72% 0.14 85) 70%, transparent); }
+    .win-dots span:nth-child(3) { background: color-mix(in oklch, oklch(58% 0.14 145) 70%, transparent); }
+    .titlebar-title { font-size: 13px; color: var(--muted); }
+    .titlebar-actions { display: flex; gap: 4px; }
+    .titlebar-btn {
+      width: 28px; height: 22px;
+      display: grid; place-items: center;
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .titlebar-btn:hover { background: var(--fg-soft); color: var(--fg); }
+    .titlebar-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .app-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 16px 20px 14px; gap: 14px; }
+
+    .app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+    .brand-block { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: color-mix(in oklch, var(--fg) 12%, transparent);
+      border: 1px solid var(--border);
+      display: grid; place-items: center;
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 16px;
+    }
+    .brand-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    .brand-sub { font-size: 12px; color: var(--muted); margin-top: 2px; letter-spacing: 0.01em; }
+    .main-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 228px;
+      grid-template-rows: minmax(0, 1fr);
+      gap: 14px;
+      min-height: 0;
+      align-items: stretch;
+    }
+    @media (max-width: 720px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .status-panel { max-height: 200px; }
+      .log-panel { height: 100px; }
+      .app-body { padding: 16px; gap: 12px; }
+    }
+
+    .process-panel { min-height: 0; overflow: hidden; }
+    .status-panel { min-height: 0; overflow: hidden; align-self: stretch; }
+
+    .glass-panel {
+      background: color-mix(in oklch, var(--surface) 65%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      backdrop-filter: blur(12px);
+      box-shadow: inset 0 1px 0 color-mix(in oklch, var(--fg) 6%, transparent);
+      display: flex; flex-direction: column;
+      min-height: 0;
+    }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title { font-size: 13px; font-weight: 600; }
+    .panel-actions { display: flex; gap: 6px; align-items: center; }
+    .btn-sm {
+      padding: 5px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      min-height: 28px;
+    }
+    .btn-sm:hover:not(:disabled) { border-color: var(--fg); color: var(--fg); }
+    .btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm.is-loading { pointer-events: none; }
+    .toggle-btn {
+      padding: 5px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 28px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .toggle-btn:hover { border-color: color-mix(in oklch, var(--fg) 50%, var(--border)); color: var(--fg); }
+    .toggle-btn.on { border-color: var(--fg); color: var(--fg); }
+
+    .panel-hint {
+      padding: 8px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .process-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+    .process-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .process-table th {
+      position: sticky; top: 0;
+      background: color-mix(in oklch, var(--surface) 95%, transparent);
+      padding: 8px 14px;
+      text-align: left;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .process-table th[scope="col"] { font-weight: 500; }
+    .process-table td { padding: 10px 14px; border-bottom: 1px solid color-mix(in oklch, var(--border) 50%, transparent); }
+    .process-empty {
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .process-empty strong { display: block; color: var(--fg); font-weight: 600; margin-bottom: 4px; }
+    .process-table tbody tr {
+      cursor: pointer;
+      transition: background 0.12s, box-shadow 0.12s;
+      box-shadow: inset 3px 0 0 transparent;
+    }
+    .process-table tbody tr:hover { background: var(--fg-soft); }
+    .process-table tbody tr.selected {
+      background: var(--accent-soft);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .process-table tbody tr[aria-selected="true"] { background: var(--accent-soft); }
+    .process-table .col-num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .process-tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: var(--fg-soft);
+      color: var(--muted);
+    }
+    .process-tag.is-mc {
+      color: var(--fg);
+      border: 1px solid color-mix(in oklch, var(--fg) 18%, var(--border));
+    }
+
+    .status-panel {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--muted) 35%, transparent) transparent;
+    }
+    .status-card {
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--fg) 3%, transparent);
+      flex-shrink: 0;
+    }
+    .status-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+    .status-value {
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status-card .meta { margin: 6px 0 0; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--fg-soft);
+      margin-top: 4px;
+    }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .status-pill.idle .dot { background: var(--muted); }
+    .status-pill.ready .dot { background: color-mix(in oklch, var(--success) 80%, transparent); }
+    .status-pill.success .dot { background: var(--success); box-shadow: 0 0 6px color-mix(in oklch, var(--success) 50%, transparent); }
+    .status-pill.error .dot { background: var(--danger); }
+    .status-pill.error { color: color-mix(in oklch, var(--danger) 70%, var(--fg)); }
+    .status-pill.loading .dot {
+      background: var(--accent);
+      animation: pulse-dot 1s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    .inject-row {
+      flex-shrink: 0;
+      padding: 10px 14px 14px;
+      border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      margin-top: auto;
+    }
+    .btn-inject {
+      width: 100%;
+      padding: 13px 18px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      background: linear-gradient(135deg, var(--accent), color-mix(in oklch, var(--accent) 72%, oklch(52% 0.12 255)));
+      color: oklch(18% 0.02 240);
+      box-shadow: 0 4px 20px var(--accent-soft);
+      transition: transform 0.05s, opacity 0.15s, box-shadow 0.15s;
+    }
+    .btn-inject:hover { box-shadow: 0 6px 32px color-mix(in oklch, var(--accent) 35%, transparent); }
+    .btn-inject:active { transform: translateY(1px); }
+    .btn-inject:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+    .btn-inject.is-loading {
+      pointer-events: none;
+      opacity: 0.75;
+      background: color-mix(in oklch, var(--accent) 70%, var(--surface));
+    }
+    .inject-hint {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .inject-hint.is-error { color: color-mix(in oklch, oklch(72% 0.14 25) 90%, var(--fg)); }
+
+    .log-panel { flex-shrink: 0; height: 120px; }
+    .log-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .log-body {
+      flex: 1;
+      overflow: auto;
+      padding: 8px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.65;
+      color: var(--muted);
+      min-height: 0;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in oklch, var(--muted) 40%, transparent) transparent;
+    }
+    .log-body::-webkit-scrollbar { width: 5px; }
+    .log-body::-webkit-scrollbar-thumb {
+      background: color-mix(in oklch, var(--muted) 35%, transparent);
+      border-radius: 999px;
+    }
+    .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-line .ts { color: color-mix(in oklch, var(--muted) 70%, transparent); }
+    .log-line.info { color: var(--fg); }
+    .log-line.ok { color: color-mix(in oklch, var(--success) 90%, var(--fg)); }
+    .log-line.warn { color: color-mix(in oklch, var(--warn) 90%, var(--fg)); }
+    .log-line.err { color: color-mix(in oklch, var(--danger) 90%, var(--fg)); }
+    .log-empty {
+      padding: 12px 0;
+      color: color-mix(in oklch, var(--muted) 70%, transparent);
+      font-style: normal;
+    }
+
+    .app-foot {
+      flex-shrink: 0;
+      padding-top: 4px;
+      font-size: 11px;
+      color: color-mix(in oklch, var(--muted) 80%, transparent);
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      padding: 10px 18px;
+      border-radius: 10px;
+      background: color-mix(in oklch, var(--surface) 90%, transparent);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      font-size: 13px;
+      opacity: 0;
+      transition: transform 0.25s, opacity 0.25s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.is-error {
+      border-color: color-mix(in oklch, var(--danger) 45%, var(--border));
+      color: color-mix(in oklch, var(--danger) 30%, var(--fg));
+    }
+
+    /* ─── 注入动画覆盖层 ─── */
+    .inject-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      padding: 32px;
+      background: color-mix(in oklch, var(--bg) 55%, transparent);
+      backdrop-filter: blur(20px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.35s ease, visibility 0.35s;
+      pointer-events: none;
+    }
+    .inject-overlay.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+    .desktop-window { position: relative; }
+
+    .inject-stage {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      width: min(420px, 100%);
+    }
+    .inject-node {
+      width: 72px;
+      height: 72px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface) 80%, transparent);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-shrink: 0;
+      box-shadow: inset 0 1px 0 color-mix(in oklch, var(--fg) 6%, transparent);
+      transition: box-shadow 0.4s, border-color 0.4s;
+    }
+    .inject-node.source {
+      border-color: color-mix(in oklch, var(--accent) 50%, var(--border));
+    }
+    .inject-node.target.receiving {
+      border-color: var(--accent);
+      box-shadow: 0 0 28px var(--accent-soft), inset 0 1px 0 color-mix(in oklch, var(--fg) 8%, transparent);
+    }
+    .inject-node-icon {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--accent);
+    }
+    .inject-node-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .inject-node-name {
+      font-size: 10px;
+      color: var(--fg);
+      font-family: var(--font-mono);
+    }
+
+    .inject-beam {
+      flex: 1;
+      height: 4px;
+      min-width: 80px;
+      max-width: 160px;
+      margin: 0 12px;
+      position: relative;
+      border-radius: 999px;
+      background: color-mix(in oklch, var(--border) 60%, transparent);
+      overflow: visible;
+    }
+    .inject-beam-fill {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, transparent, var(--accent), color-mix(in oklch, var(--accent) 60%, var(--fg)));
+      transform-origin: left center;
+      transform: scaleX(0);
+      transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .inject-beam-fill.step-1 { transform: scaleX(0.28); }
+    .inject-beam-fill.step-2 { transform: scaleX(0.58); }
+    .inject-beam-fill.step-3 { transform: scaleX(0.82); }
+    .inject-beam-fill.step-4 { transform: scaleX(1); }
+
+    .inject-particle {
+      position: absolute;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      margin-top: -3px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      opacity: 0;
+      animation: particle-flow 0.65s ease-in infinite;
+    }
+    .inject-particle:nth-child(2) { animation-delay: 0.15s; }
+    .inject-particle:nth-child(3) { animation-delay: 0.32s; }
+    .inject-particle:nth-child(4) { animation-delay: 0.48s; }
+    .inject-overlay.active .inject-particle { opacity: 1; }
+
+    @keyframes particle-flow {
+      0%   { left: 0; opacity: 0; transform: scale(0.6); }
+      15%  { opacity: 1; transform: scale(1); }
+      85%  { opacity: 1; }
+      100% { left: calc(100% - 6px); opacity: 0; transform: scale(0.5); }
+    }
+
+    .inject-ring-wrap {
+      position: relative;
+      width: 88px;
+      height: 88px;
+    }
+    .inject-ring {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+    .inject-ring .ring-track,
+    .inject-ring-fill {
+      fill: none;
+      stroke-width: 3;
+    }
+    .inject-ring .ring-track {
+      stroke: color-mix(in oklch, var(--border) 80%, transparent);
+    }
+    .inject-ring-fill {
+      stroke: var(--accent);
+      stroke-linecap: round;
+      stroke-dasharray: 226;
+      stroke-dashoffset: 226;
+      transition: stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+      filter: drop-shadow(0 0 6px var(--accent-soft));
+    }
+    .inject-ring-fill.step-1 { stroke-dashoffset: 169; }
+    .inject-ring-fill.step-2 { stroke-dashoffset: 95; }
+    .inject-ring-fill.step-3 { stroke-dashoffset: 40; }
+    .inject-ring-fill.step-4 { stroke-dashoffset: 0; }
+
+    .inject-percent {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--fg);
+    }
+
+    .inject-status-block {
+      text-align: center;
+      min-height: 52px;
+    }
+    .inject-status-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      transition: opacity 0.25s;
+    }
+    .inject-status-sub {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .inject-steps-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .inject-step-chip {
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: color-mix(in oklch, var(--fg) 2%, transparent);
+      transition: border-color 0.3s, color 0.3s, background 0.3s, box-shadow 0.3s;
+    }
+    .inject-step-chip.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+      box-shadow: 0 0 12px var(--accent-soft);
+    }
+    .inject-step-chip.done {
+      border-color: color-mix(in oklch, var(--success) 60%, var(--border));
+      color: color-mix(in oklch, var(--success) 90%, var(--fg));
+    }
+    .inject-step-chip.is-error {
+      border-color: color-mix(in oklch, var(--danger) 55%, var(--border));
+      color: color-mix(in oklch, var(--danger) 85%, var(--fg));
+      background: color-mix(in oklch, var(--danger) 10%, transparent);
+    }
+
+    .inject-flash {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 45%, var(--accent-soft), transparent 65%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+    .inject-overlay.flash .inject-flash { opacity: 1; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .inject-particle { display: none; }
+      .status-pill.loading .dot { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="desktop-window" data-od-id="launcher-window">
+    <header class="titlebar" data-od-id="titlebar">
+      <div class="titlebar-left">
+        <div class="win-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <span class="titlebar-title">MyiUI Injector</span>
+      </div>
+      <div class="titlebar-actions">
+        <button class="titlebar-btn" id="btnMinimize" aria-label="最小化">—</button>
+        <button class="titlebar-btn" id="btnMaximize" aria-label="最大化">□</button>
+        <button class="titlebar-btn" id="btnClose" aria-label="关闭">×</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <section class="app-header" data-od-id="header">
+        <div class="brand-block">
+          <div class="brand-mark">M</div>
+          <div>
+            <div class="brand-name">MYIUI</div>
+            <div class="brand-sub">Fabric 1.21 · 注入器</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="main-grid" data-od-id="process-section">
+        <div class="glass-panel process-panel">
+          <div class="panel-head">
+            <span class="panel-title">Java 进程</span>
+            <div class="panel-actions">
+              <button class="btn-sm" id="btnRefresh" aria-label="刷新进程列表">刷新</button>
+              <button class="toggle-btn on" id="btnAutoRefresh" aria-pressed="true">自动刷新：开</button>
+            </div>
+          </div>
+          <p class="panel-hint">启动 Minecraft 并停在主菜单，然后刷新列表 · 推荐选择带 MC 标记的进程</p>
+          <div class="process-table-wrap">
+            <table class="process-table" id="processTable" aria-label="Java 进程列表">
+              <thead>
+                <tr>
+                  <th scope="col">进程</th>
+                  <th scope="col" class="col-num">PID</th>
+                  <th scope="col" class="col-num">内存</th>
+                  <th scope="col">识别</th>
+                </tr>
+              </thead>
+              <tbody id="processBody"></tbody>
+            </table>
+          </div>
+          <div class="inject-row" data-od-id="inject-action">
+            <p class="inject-hint" id="injectHint">请先选择目标进程</p>
+            <button class="btn-inject" id="btnInject" disabled aria-describedby="injectHint">注入 MyiUI</button>
+          </div>
+        </div>
+
+        <aside class="glass-panel status-panel" data-od-id="status-sidebar">
+          <div class="status-card">
+            <div class="status-label">选中进程</div>
+            <div class="status-value" id="selectedName">—</div>
+            <div class="status-pill idle" id="statusPill"><span class="dot"></span><span id="statusText">未选择</span></div>
+          </div>
+          <div class="status-card">
+            <div class="status-label">注入器状态</div>
+            <div class="status-value" id="injectorState">就绪</div>
+            <p class="meta" id="injectorMeta">Agent 已加载 · Overlay 待写入</p>
+          </div>
+          <div class="status-card">
+            <div class="status-label">上次注入</div>
+            <div class="status-value num" id="lastInject">—</div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="glass-panel log-panel" data-od-id="log-console">
+        <div class="log-head">
+          <span class="panel-title">运行日志</span>
+          <button class="btn-sm" id="btnClearLog" aria-label="清空运行日志">清空</button>
+        </div>
+        <div class="log-body" id="logBody" role="log" aria-live="polite" aria-relevant="additions"></div>
+      </section>
+
+      <footer class="app-foot" data-od-id="footer">
+        需管理员权限时请以管理员运行 · 每次重启 MC 需重新注入
+      </footer>
+    </div>
+
+    <div class="inject-overlay" id="injectOverlay" aria-hidden="true" aria-live="assertive" aria-modal="true" aria-labelledby="injectStatusTitle">
+      <div class="inject-flash" aria-hidden="true"></div>
+
+      <div class="inject-stage">
+        <div class="inject-node source">
+          <span class="inject-node-icon">M</span>
+          <span class="inject-node-label">Agent</span>
+        </div>
+
+        <div class="inject-beam" aria-hidden="true">
+          <div class="inject-beam-fill" id="injectBeamFill"></div>
+          <span class="inject-particle"></span>
+          <span class="inject-particle"></span>
+          <span class="inject-particle"></span>
+          <span class="inject-particle"></span>
+        </div>
+
+        <div class="inject-node target" id="injectTargetNode">
+          <span class="inject-node-icon" style="font-size:13px;color:var(--fg);letter-spacing:-0.04em">JVM</span>
+          <span class="inject-node-name num" id="injectTargetPid">—</span>
+          <span class="inject-node-label">进程</span>
+        </div>
+      </div>
+
+      <div class="inject-ring-wrap">
+        <svg class="inject-ring" viewBox="0 0 80 80" aria-hidden="true">
+          <circle class="ring-track" cx="40" cy="40" r="36" />
+          <circle class="inject-ring-fill" id="injectRingFill" cx="40" cy="40" r="36" />
+        </svg>
+        <div class="inject-percent num" id="injectPercent">0%</div>
+      </div>
+
+      <div class="inject-status-block">
+        <div class="inject-status-title" id="injectStatusTitle">准备注入…</div>
+        <div class="inject-status-sub" id="injectStatusSub">正在初始化</div>
+      </div>
+
+      <div class="inject-steps-row" id="injectStepsRow">
+        <span class="inject-step-chip" data-step="0">连接进程</span>
+        <span class="inject-step-chip" data-step="1">映射内存</span>
+        <span class="inject-step-chip" data-step="2">加载 Agent</span>
+        <span class="inject-step-chip" data-step="3">验证完成</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const isNative = !!(window.chrome && window.chrome.webview);
+    if (isNative) document.body.classList.add('host-native');
+
+    let PROCESSES = isNative ? [] : [
+      { name: 'java.exe', pid: 67768, mem: '751 MB', tag: 'Java 进程 · JDK 21', mc: false },
+      { name: 'java.exe', pid: 78816, mem: '517 MB', tag: 'Java 进程 · JDK 21 · MC', mc: true },
+      { name: 'javaw.exe', pid: 80224, mem: '312 MB', tag: 'Java 进程 · JDK 17', mc: false },
+    ];
+
+    function postToHost(payload) {
+      if (isNative) window.chrome.webview.postMessage(JSON.stringify(payload));
+    }
+
+    if (isNative) {
+      window.chrome.webview.addEventListener('message', function (event) {
+        let data;
+        try { data = JSON.parse(event.data); } catch (_) { return; }
+        if (!data || !data.type) return;
+        switch (data.type) {
+          case 'processes':
+            PROCESSES = data.items || [];
+            refreshing = false;
+            btnRefresh.disabled = false;
+            btnRefresh.classList.remove('is-loading');
+            btnRefresh.textContent = '刷新';
+            btnRefresh.removeAttribute('aria-busy');
+            renderProcesses();
+            if (!selectedPid && PROCESSES.length > 0) {
+              const preferred = PROCESSES.find(p => p.mc) || PROCESSES[0];
+              selectProcess(preferred.pid);
+            }
+            if (selectedPid && !PROCESSES.find(p => p.pid === selectedPid)) {
+              selectedPid = null;
+              injectedPid = null;
+              $('selectedName').textContent = '—';
+              $('statusPill').className = 'status-pill idle';
+              $('statusText').textContent = '未选择';
+              btnInject.disabled = true;
+              btnInject.textContent = '注入 MyiUI';
+            } else if (selectedPid) {
+              selectProcess(selectedPid);
+            }
+            updateInjectHint();
+            break;
+          case 'log':
+            log(data.msg || '', data.level || '');
+            break;
+          case 'injectStep':
+            if (injecting && typeof data.step === 'number') {
+              setInjectStep(data.step);
+              const step = INJECT_STEPS[data.step];
+              if (step) {
+                const msg = step.log + (data.step === 0 ? (data.pid || selectedPid || '') : '');
+                log(msg, data.step === INJECT_STEPS.length - 1 ? 'ok' : 'info');
+              }
+              if (data.step === INJECT_STEPS.length - 1) {
+                $('injectOverlay').classList.add('flash');
+                $('lastInject').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+              }
+            }
+            break;
+          case 'injectResult':
+            if (!injecting) return;
+            if (data.ok) finishInjectAnimation(data.pid || selectedPid);
+            else failInjectAnimation(data.pid || selectedPid, typeof data.step === 'number' ? data.step : 0, data.message);
+            break;
+          case 'injectCancelled':
+            if (injecting) cancelInjectAnimation();
+            break;
+          case 'init':
+            if (data.rootPath) log('[MyiUI] 根目录 ' + data.rootPath);
+            break;
+        }
+      });
+    }
+
+    let selectedPid = null;
+    let autoRefresh = true;
+    let refreshTimer = null;
+    let refreshing = false;
+    let injectedPid = null;
+    let injectTimers = [];
+
+    const $ = id => document.getElementById(id);
+    const logBody = $('logBody');
+    const toast = $('toast');
+    const btnInject = $('btnInject');
+    const btnRefresh = $('btnRefresh');
+    const injectHint = $('injectHint');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const INJECT_DURATION = reduceMotion ? 800 : 3000;
+
+    function showToast(msg, isError) {
+      toast.textContent = msg;
+      toast.classList.toggle('is-error', !!isError);
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+        toast.classList.remove('is-error');
+      }, isError ? 3600 : 2800);
+    }
+
+    function updateLogEmptyState() {
+      const empty = logBody.querySelector('.log-empty');
+      if (logBody.children.length === 0) {
+        if (!empty) {
+          const el = document.createElement('div');
+          el.className = 'log-empty';
+          el.textContent = '暂无日志输出';
+          logBody.appendChild(el);
+        }
+      } else if (empty) {
+        empty.remove();
+      }
+    }
+
+    function log(msg, type = '') {
+      const placeholder = logBody.querySelector('.log-empty');
+      if (placeholder) placeholder.remove();
+      const line = document.createElement('div');
+      line.className = 'log-line' + (type ? ' ' + type : '');
+      const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      line.innerHTML = '<span class="ts">[' + ts + ']</span> ' + msg;
+      logBody.appendChild(line);
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    function updateInjectHint() {
+      if (injecting) {
+        injectHint.textContent = '正在注入，按 Esc 可取消…';
+        injectHint.classList.remove('is-error');
+      } else if (!selectedPid) {
+        injectHint.textContent = '请先选择目标进程（推荐带 MC 标记的进程）';
+        injectHint.classList.remove('is-error');
+      } else if (injectedPid === selectedPid) {
+        injectHint.textContent = '当前进程已注入，可重新注入或切换进程';
+        injectHint.classList.remove('is-error');
+      } else {
+        const proc = PROCESSES.find(p => p.pid === selectedPid);
+        injectHint.textContent = '已选中 PID ' + selectedPid + '，点击注入';
+        injectHint.classList.remove('is-error');
+      }
+    }
+
+    function renderProcesses() {
+      const tbody = $('processBody');
+      tbody.innerHTML = '';
+      if (PROCESSES.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="4"><div class="process-empty"><strong>未发现 Java 进程</strong>启动 Minecraft 并停在主菜单，然后点击刷新</div></td>';
+        tbody.appendChild(tr);
+        return;
+      }
+      PROCESSES.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.dataset.pid = p.pid;
+        tr.tabIndex = 0;
+        tr.setAttribute('role', 'button');
+        tr.setAttribute('aria-label', p.name + '，PID ' + p.pid + '，内存 ' + p.mem);
+        const isSelected = p.pid === selectedPid;
+        tr.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        if (isSelected) tr.classList.add('selected');
+        tr.innerHTML =
+          '<td>' + p.name + '</td>' +
+          '<td class="col-num num">' + p.pid + '</td>' +
+          '<td class="col-num num">' + p.mem + '</td>' +
+          '<td><span class="process-tag' + (p.mc ? ' is-mc' : '') + '">' + p.tag + '</span></td>';
+        tr.addEventListener('click', () => selectProcess(p.pid));
+        tr.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectProcess(p.pid);
+          }
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selectProcess(pid) {
+      selectedPid = pid;
+      const proc = PROCESSES.find(p => p.pid === pid);
+      $('selectedName').textContent = proc ? proc.name + ' · ' + proc.pid : '—';
+      const pill = $('statusPill');
+      const text = $('statusText');
+      if (injectedPid === pid) {
+        pill.className = 'status-pill success';
+        text.textContent = '已注入 · ' + proc.mem;
+      } else {
+        pill.className = 'status-pill ready';
+        text.textContent = '已选中 · ' + proc.mem;
+      }
+      btnInject.disabled = false;
+      btnInject.textContent = injectedPid === pid ? '重新注入' : '注入 MyiUI';
+      if ($('injectorState').textContent === '失败') {
+        setInjectorState('就绪', 'Agent 已加载 · Overlay 待写入', false);
+      }
+      updateInjectHint();
+      renderProcesses();
+      log('[MyiUI] 已选中 PID ' + pid, 'info');
+    }
+
+    function focusProcessRow(index) {
+      const rows = Array.from(document.querySelectorAll('#processBody tr[data-pid]'));
+      if (!rows.length) return;
+      const i = Math.max(0, Math.min(index, rows.length - 1));
+      rows[i].focus();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && injecting) {
+        e.preventDefault();
+        cancelInjectAnimation();
+        return;
+      }
+      const rows = Array.from(document.querySelectorAll('#processBody tr[data-pid]'));
+      if (!rows.length) return;
+      const active = document.activeElement;
+      const idx = rows.indexOf(active);
+      if (idx === -1) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusProcessRow(idx + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusProcessRow(idx - 1);
+      }
+    });
+
+    function refreshList() {
+      if (refreshing) return;
+      refreshing = true;
+      btnRefresh.disabled = true;
+      btnRefresh.classList.add('is-loading');
+      btnRefresh.textContent = '刷新中…';
+      btnRefresh.setAttribute('aria-busy', 'true');
+      log('[MyiUI] 正在刷新进程列表…');
+      if (isNative) {
+        postToHost({ type: 'refresh' });
+        return;
+      }
+      setTimeout(() => {
+        refreshing = false;
+        btnRefresh.disabled = false;
+        btnRefresh.classList.remove('is-loading');
+        btnRefresh.textContent = '刷新';
+        btnRefresh.removeAttribute('aria-busy');
+        log('[MyiUI] 已刷新进程列表，当前 ' + PROCESSES.length + ' 个 Java 进程', 'ok');
+        if (selectedPid) log('[MyiUI] 当前选中 PID ' + selectedPid, 'info');
+      }, reduceMotion ? 150 : 400);
+    }
+
+    btnRefresh.addEventListener('click', refreshList);
+
+    $('btnAutoRefresh').addEventListener('click', function () {
+      autoRefresh = !autoRefresh;
+      this.classList.toggle('on', autoRefresh);
+      this.setAttribute('aria-pressed', autoRefresh ? 'true' : 'false');
+      this.textContent = '自动刷新：' + (autoRefresh ? '开' : '关');
+      if (autoRefresh) startAutoRefresh(); else stopAutoRefresh();
+      log('[MyiUI] 自动刷新已' + (autoRefresh ? '开启' : '关闭'));
+    });
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      refreshTimer = setInterval(refreshList, 8000);
+    }
+    function stopAutoRefresh() {
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    }
+
+    const INJECT_STEPS = [
+      { pct: 22, title: '连接进程', sub: '正在附加到目标 JVM…', log: '[Inject] OpenProcess PID ' },
+      { pct: 48, title: '映射内存', sub: '解析模块基址与导出表…', log: '[Inject] VirtualAllocEx 完成' },
+      { pct: 76, title: '加载 Agent', sub: '写入 MyiUI payload 并 CreateRemoteThread…', log: '[Inject] LoadLibrary 返回 0x7FF' },
+      { pct: 100, title: '验证完成', sub: 'Agent 已挂载，可以进入游戏', log: '[Inject] 注入成功' },
+    ];
+    let injecting = false;
+
+    function clearInjectTimers() {
+      injectTimers.forEach(t => clearTimeout(t));
+      injectTimers = [];
+    }
+
+    function shouldFailInject(pid) {
+      const proc = PROCESSES.find(p => p.pid === pid);
+      return proc && !proc.mc;
+    }
+
+    function cancelInjectAnimation() {
+      if (!injecting) return;
+      if (isNative) postToHost({ type: 'cancelInject' });
+      clearInjectTimers();
+      const overlay = $('injectOverlay');
+      overlay.classList.remove('active', 'flash');
+      overlay.setAttribute('aria-hidden', 'true');
+      $('injectTargetNode').classList.remove('receiving');
+      injecting = false;
+      btnInject.disabled = !selectedPid;
+      btnInject.classList.remove('is-loading');
+      btnInject.removeAttribute('aria-busy');
+      btnInject.textContent = injectedPid === selectedPid ? '重新注入' : '注入 MyiUI';
+      resetInjectOverlay();
+      setInjectorState('就绪', '注入已取消', false);
+      if (selectedPid) {
+        const proc = PROCESSES.find(p => p.pid === selectedPid);
+        $('statusPill').className = 'status-pill ready';
+        $('statusText').textContent = '已选中 · ' + (proc ? proc.mem : '—');
+      }
+      updateInjectHint();
+      log('[MyiUI] 注入已取消', 'warn');
+      showToast('注入已取消');
+      btnInject.focus();
+    }
+
+    function failInjectAnimation(pid, stepIndex, customMessage) {
+      clearInjectTimers();
+      const overlay = $('injectOverlay');
+      $('injectStatusTitle').textContent = '注入失败';
+      $('injectStatusSub').textContent = customMessage || '目标进程不是 Minecraft，请切换到带 MC 标记的进程';
+      document.querySelectorAll('.inject-step-chip').forEach((chip, i) => {
+        chip.classList.remove('active', 'done');
+        if (i < stepIndex) chip.classList.add('done');
+        else if (i === stepIndex) chip.classList.add('is-error');
+      });
+      log('[Inject] OpenProcess 失败 · 进程未响应或不是 MC 实例', 'err');
+      log('[MyiUI] 注入失败 PID ' + pid, 'err');
+      injectTimers.push(setTimeout(() => {
+        overlay.classList.remove('active', 'flash');
+        overlay.setAttribute('aria-hidden', 'true');
+        $('injectTargetNode').classList.remove('receiving');
+        injecting = false;
+        btnInject.disabled = false;
+        btnInject.classList.remove('is-loading');
+        btnInject.removeAttribute('aria-busy');
+        btnInject.textContent = '重试注入';
+        resetInjectOverlay();
+        $('statusPill').className = 'status-pill error';
+        $('statusText').textContent = '注入失败';
+        setInjectorState('失败', '未检测到 MC 主进程 · 请重新选择', false);
+        injectHint.textContent = '注入失败：请选择带 MC 标记的 java.exe 进程';
+        injectHint.classList.add('is-error');
+        showToast('注入失败 — 请选择 MC 进程', true);
+        btnInject.focus();
+      }, reduceMotion ? 400 : 900));
+    }
+
+    function setInjectorState(label, meta, loading) {
+      $('injectorState').textContent = label;
+      $('injectorMeta').textContent = meta;
+      const pill = $('statusPill');
+      if (loading) {
+        pill.className = 'status-pill loading';
+        $('statusText').textContent = '注入中…';
+      }
+    }
+
+    function setInjectStep(index) {
+      const step = INJECT_STEPS[index];
+      if (!step) return;
+      $('injectPercent').textContent = step.pct + '%';
+      $('injectStatusTitle').textContent = step.title;
+      $('injectStatusSub').textContent = step.sub;
+      const beam = $('injectBeamFill');
+      const ring = $('injectRingFill');
+      beam.className = 'inject-beam-fill step-' + (index + 1);
+      ring.className = 'inject-ring-fill step-' + (index + 1);
+      document.querySelectorAll('.inject-step-chip').forEach((chip, i) => {
+        chip.classList.remove('active', 'done');
+        if (i < index) chip.classList.add('done');
+        else if (i === index) chip.classList.add('active');
+      });
+      if (index >= 2) $('injectTargetNode').classList.add('receiving');
+    }
+
+    function resetInjectOverlay() {
+      $('injectPercent').textContent = '0%';
+      $('injectStatusTitle').textContent = '准备注入…';
+      $('injectStatusSub').textContent = '正在初始化';
+      $('injectBeamFill').className = 'inject-beam-fill';
+      $('injectRingFill').className = 'inject-ring-fill';
+      $('injectTargetNode').classList.remove('receiving');
+      document.querySelectorAll('.inject-step-chip').forEach(chip => {
+        chip.classList.remove('active', 'done', 'is-error');
+      });
+    }
+
+    function playInjectAnimation(pid) {
+      if (injecting) return;
+      clearInjectTimers();
+      injecting = true;
+      btnInject.disabled = true;
+      btnInject.classList.add('is-loading');
+      btnInject.textContent = '注入中…';
+      btnInject.setAttribute('aria-busy', 'true');
+      updateInjectHint();
+      setInjectorState('注入中', '正在写入 Agent 到目标进程…', true);
+
+      const overlay = $('injectOverlay');
+      const proc = PROCESSES.find(p => p.pid === pid);
+      const willFail = shouldFailInject(pid);
+      resetInjectOverlay();
+      $('injectTargetPid').textContent = proc ? proc.name.replace('.exe', '') : 'java';
+      overlay.classList.remove('flash');
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      log('[MyiUI] 开始注入 PID ' + pid + '…', 'info');
+
+      if (isNative) {
+        postToHost({ type: 'inject', pid });
+        return;
+      }
+
+      if (willFail) {
+        injectTimers.push(setTimeout(() => {
+          if (!injecting) return;
+          setInjectStep(0);
+          log(INJECT_STEPS[0].log + pid, 'info');
+          injectTimers.push(setTimeout(() => failInjectAnimation(pid, 0), reduceMotion ? 200 : 650));
+        }, reduceMotion ? 80 : 200));
+        return;
+      }
+
+      const stepDelay = INJECT_DURATION / INJECT_STEPS.length;
+      INJECT_STEPS.forEach((step, i) => {
+        injectTimers.push(setTimeout(() => {
+          if (!injecting) return;
+          setInjectStep(i);
+          const msg = step.log + (i === 0 ? pid : '');
+          log(msg, i === INJECT_STEPS.length - 1 ? 'ok' : 'info');
+          if (i === INJECT_STEPS.length - 1) {
+            overlay.classList.add('flash');
+            $('lastInject').textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+          }
+        }, stepDelay * i));
+      });
+
+      injectTimers.push(setTimeout(() => finishInjectAnimation(pid), INJECT_DURATION + (reduceMotion ? 80 : 280)));
+    }
+
+    function finishInjectAnimation(pid) {
+      if (!injecting) return;
+      clearInjectTimers();
+      const overlay = $('injectOverlay');
+      overlay.classList.remove('active', 'flash');
+      overlay.setAttribute('aria-hidden', 'true');
+      $('injectTargetNode').classList.remove('receiving');
+      injecting = false;
+      injectedPid = pid;
+      btnInject.disabled = false;
+      btnInject.classList.remove('is-loading');
+      btnInject.removeAttribute('aria-busy');
+      btnInject.textContent = '重新注入';
+
+      const proc = PROCESSES.find(p => p.pid === pid);
+      $('statusPill').className = 'status-pill success';
+      $('statusText').textContent = '已注入 · ' + (proc ? proc.mem : '—');
+      $('selectedName').textContent = (proc ? proc.name + ' · ' + proc.pid : pid) + ' · 运行中';
+      setInjectorState('就绪', 'Agent 已挂载 · Overlay 待写入', false);
+      updateInjectHint();
+
+      showToast('MyiUI 注入成功');
+      log('[MyiUI] 注入流程完成，PID ' + pid, 'ok');
+      btnInject.focus();
+    }
+
+    btnInject.addEventListener('click', () => {
+      if (!selectedPid || injecting) return;
+      playInjectAnimation(selectedPid);
+    });
+
+    $('btnClearLog').addEventListener('click', () => {
+      logBody.innerHTML = '';
+      updateLogEmptyState();
+    });
+
+    $('btnMinimize').addEventListener('click', () => postToHost({ type: 'window', action: 'minimize' }));
+    $('btnMaximize').addEventListener('click', () => postToHost({ type: 'window', action: 'maximize' }));
+    $('btnClose').addEventListener('click', () => postToHost({ type: 'window', action: 'close' }));
+
+    if (isNative) {
+      postToHost({ type: 'ready' });
+    } else {
+      log('[MyiUI] 启动器已就绪');
+      log('[MyiUI] 根目录 C:\\Users\\Admin\\AppData\\Roaming\\.myiui');
+      renderProcesses();
+      updateInjectHint();
+      startAutoRefresh();
+    }
+  </script>
+</body>
+</html>

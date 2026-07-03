@@ -1,0 +1,770 @@
+/**
+ * MyiUI HUD System — Glass v2 + Liquid Glass
+ * 与 menu-system.css 并列；游戏内 HUD 专用 token 与组件
+ * Liquid Glass 预览近似 · 运行时见 hud-spec.json → liquidGlass
+ * 基准分辨率：1920×1080，GUI scale 2–4 等比缩放
+ */
+
+:root {
+  /* ── Glass v2 核心（对齐主菜单） ── */
+  --myiui-accent: #5AC8FA;
+  --myiui-accent-rgb: 90, 200, 250;
+  --myiui-glass-bg: rgba(255, 255, 255, 0.08);
+  --myiui-glass-bg-strong: rgba(255, 255, 255, 0.12);
+  --myiui-glass-border: rgba(255, 255, 255, 0.22);
+  --myiui-glass-blur: 20px;
+  --myiui-radius-md: 14px;
+  --myiui-radius-sm: 8px;
+  --myiui-radius-pill: 999px;
+
+  /* ── 语义色 ── */
+  --myiui-danger: oklch(62% 0.18 25);
+  --myiui-danger-rgb: 220, 72, 58;
+  --myiui-success: oklch(68% 0.14 155);
+  --myiui-success-rgb: 72, 180, 120;
+  --myiui-absorption: #E8C547;
+  --myiui-saturation: rgba(232, 197, 71, 0.55);
+  --myiui-hunger-fill: linear-gradient(90deg, oklch(72% 0.14 55) 0%, oklch(68% 0.16 45) 100%);
+  --myiui-health-fill: linear-gradient(90deg, oklch(68% 0.14 155) 0%, oklch(62% 0.16 160) 100%);
+  --myiui-health-fill-low: linear-gradient(90deg, oklch(62% 0.18 25) 0%, oklch(58% 0.20 20) 100%);
+
+  /* ── 字体 ── */
+  --myiui-font-display: 'Alibaba PuHuiTi', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --myiui-font-body: 'PingFang SC', 'Alibaba PuHuiTi', 'Microsoft YaHei', system-ui, sans-serif;
+  --myiui-font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', ui-monospace, monospace;
+
+  /* ── HUD 布局（1920×1080 基准，vmin 备注见 DESIGN.md） ── */
+  --myiui-hud-safe-bottom: 16px;          /* 12–20px 范围，≈ 1.48vmin @1080p */
+  --myiui-hud-safe-left: 20px;
+  --myiui-hud-gap: 10px;
+  --myiui-hud-scale: 1;                   /* GUI scale 乘数，运行时注入 */
+
+  /* ── 状态栏 ── */
+  --myiui-status-width: 280px;            /* ≈ 14.6vw */
+  --myiui-status-bar-height: 10px;
+  --myiui-status-bar-radius: 5px;
+  --myiui-status-label-size: 11px;
+  --myiui-status-row-gap: 8px;
+
+  /* ── 物品栏 ── */
+  --myiui-hotbar-slot: 48px;              /* GUI scale 2 ≈ 40px, scale 4 ≈ 56px */
+  --myiui-hotbar-gap: 4px;
+  --myiui-hotbar-padding: 6px 10px;
+  --myiui-hotbar-tray-radius: var(--myiui-radius-md);
+
+  /* ── z-index 层级 ── */
+  --myiui-z-hud-bg: 100;
+  --myiui-z-hud-bars: 110;
+  --myiui-z-hud-hotbar: 120;
+  --myiui-z-hud-tooltip: 200;
+  --myiui-z-hud-demo: 300;
+
+  /* ── 数据绑定 CSS 变量（运行时由 Fabric 注入） ── */
+  --health-pct: 100%;
+  --health-max: 20;
+  --health-current: 20;
+  --absorption-pct: 0%;
+  --hunger-pct: 100%;
+  --saturation-pct: 100%;
+  --exhaustion-pct: 0%;
+
+  /* ── Liquid Glass（对齐 LiquidGlassShader v2） ── */
+  --myiui-lg-power: 4;                    /* uPowerFactor · sdSuperellipse 指数 */
+  --myiui-lg-blur-iterations: 1;          /* blurIterations */
+  --myiui-lg-blur-radius: 2;              /* blurRadius · px @1080p 基准 */
+  --myiui-lg-blur-downscale: 0.5;         /* blurDownScale */
+  --myiui-lg-noise: 0.03;                 /* uNoise */
+  --myiui-lg-refraction: 0.75;            /* uRefractionPower */
+  --myiui-lg-chroma: 0.001;               /* uChromaStrength · Tinted */
+  --myiui-lg-tint-r: 0.35;                /* 映射 #5AC8FA ≈ RGB(89,200,250) */
+  --myiui-lg-tint-g: 0.78;
+  --myiui-lg-tint-b: 1.0;
+  --myiui-lg-tint-strength: 0.12;         /* uTintStrength · HUD 默认 Tinted */
+  --myiui-lg-darkness: 0;                 /* uDarkness · 0=日间 0.35=夜间 */
+  --myiui-lg-glow-weight: 0.3;            /* uGlowWeight · Clear */
+  --myiui-lg-glow-bias: 0;
+  --myiui-lg-glow-edge0: 0.06;
+  --myiui-lg-glow-edge1: 0;
+  --myiui-lg-superellipse-rx: 18px;        /* 超椭圆视觉半径 · 面板 */
+  --myiui-lg-superellipse-ry: 16px;
+  --myiui-lg-superellipse-rx-sm: 11px;    /* 槽位 compact */
+  --myiui-lg-superellipse-ry-sm: 10px;
+}
+
+/* ── 毛玻璃面板基类（Flat · 无 shader 降级） ── */
+.myiui-glass {
+  background: var(--myiui-glass-bg);
+  backdrop-filter: blur(var(--myiui-glass-blur));
+  -webkit-backdrop-filter: blur(var(--myiui-glass-blur));
+  border: 1px solid var(--myiui-glass-border);
+  border-radius: var(--myiui-radius-md);
+}
+
+.myiui-glass-compact {
+  background: var(--myiui-glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--myiui-glass-border);
+  border-radius: var(--myiui-radius-sm);
+}
+
+/* ── Liquid Glass 基类（CSS 近似 · 运行时见 hud-spec liquidGlass） ── */
+.myiui-liquid-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--myiui-lg-superellipse-rx) / var(--myiui-lg-superellipse-ry);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0.04) 42%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+  backdrop-filter: blur(calc(var(--myiui-lg-blur-radius) * 10px)) saturate(calc(1 - var(--myiui-lg-noise)));
+  -webkit-backdrop-filter: blur(calc(var(--myiui-lg-blur-radius) * 10px)) saturate(calc(1 - var(--myiui-lg-noise)));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+@supports (corner-shape: superellipse(1.5)) {
+  .myiui-liquid-glass {
+    corner-shape: superellipse(calc(var(--myiui-lg-power) * 0.35));
+  }
+}
+
+/* 折射感 · 背景采样偏移近似（预览用，非真实 UV 扭曲） */
+.myiui-liquid-glass > * {
+  position: relative;
+  z-index: 2;
+}
+
+.myiui-liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      ellipse 88% 82% at 50% 38%,
+      rgba(255, 255, 255, 0.14) 0%,
+      transparent 52%
+    ),
+    radial-gradient(
+      ellipse 105% 100% at 50% 50%,
+      transparent 58%,
+      rgba(var(--myiui-accent-rgb), 0.06) 78%,
+      rgba(var(--myiui-accent-rgb), 0.28) 100%
+    );
+  transform: scale(1.02) translate(calc(var(--myiui-lg-refraction) * -1%), calc(var(--myiui-lg-refraction) * 0.5%));
+  opacity: 0.85;
+  mix-blend-mode: screen;
+  mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, transparent 42%, black 100%);
+  -webkit-mask-image: radial-gradient(ellipse 92% 88% at 50% 50%, transparent 42%, black 100%);
+}
+
+/* Fresnel 边缘冷光 + 色散 RGB 分离（fresnel × chromaStrength） */
+.myiui-liquid-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background:
+    linear-gradient(135deg, rgba(255, 80, 90, calc(var(--myiui-lg-chroma) * 120)) 0%, transparent 18%),
+    linear-gradient(315deg, rgba(80, 140, 255, calc(var(--myiui-lg-chroma) * 120)) 0%, transparent 18%),
+    linear-gradient(180deg, rgba(var(--myiui-accent-rgb), 0.42) 0%, transparent 22%, transparent 78%, rgba(var(--myiui-accent-rgb), 0.35) 100%);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: calc(0.55 + var(--myiui-lg-glow-weight) * 0.5);
+}
+
+/* 磨砂 Frost · 微颗粒 noise（uNoise） */
+.myiui-liquid-glass__noise {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: calc(var(--myiui-lg-noise) * 2.8);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Tinted · liquidGlassV2Tinted · 冰蓝染色 HUD 默认 */
+.myiui-liquid-glass--tinted {
+  background:
+    linear-gradient(
+      155deg,
+      rgba(calc(var(--myiui-lg-tint-r) * 255), calc(var(--myiui-lg-tint-g) * 255), calc(var(--myiui-lg-tint-b) * 255), calc(var(--myiui-lg-tint-strength) * 0.55)) 0%,
+      rgba(255, 255, 255, 0.05) 48%,
+      rgba(8, 12, 18, calc(var(--myiui-lg-darkness) * 0.25)) 100%
+    );
+}
+
+.myiui-liquid-glass--tinted::before {
+  background:
+    radial-gradient(
+      ellipse 90% 85% at 50% 40%,
+      rgba(calc(var(--myiui-lg-tint-r) * 255), calc(var(--myiui-lg-tint-g) * 255), calc(var(--myiui-lg-tint-b) * 255), 0.08) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 108% 102% at 50% 50%,
+      transparent 55%,
+      rgba(var(--myiui-accent-rgb), 0.10) 82%,
+      rgba(var(--myiui-accent-rgb), 0.32) 100%
+    );
+}
+
+/* Clear · liquidGlassV2Clear · 更通透 + 强边缘 glow */
+.myiui-liquid-glass--clear {
+  --myiui-lg-chroma: 0;
+  --myiui-lg-tint-strength: 0;
+  background:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 55%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+}
+
+.myiui-liquid-glass--clear::before {
+  opacity: calc(0.65 + var(--myiui-lg-glow-weight));
+  background:
+    radial-gradient(
+      ellipse 95% 90% at 50% 35%,
+      rgba(255, 255, 255, 0.22) 0%,
+      transparent 50%
+    ),
+    conic-gradient(
+      from 210deg at 50% 50%,
+      rgba(var(--myiui-accent-rgb), 0.35),
+      rgba(255, 255, 255, 0.12),
+      rgba(var(--myiui-accent-rgb), 0.28),
+      rgba(255, 255, 255, 0.08),
+      rgba(var(--myiui-accent-rgb), 0.35)
+    );
+  mask-image: radial-gradient(ellipse 88% 84% at 50% 50%, transparent 38%, black 100%);
+  -webkit-mask-image: radial-gradient(ellipse 88% 84% at 50% 50%, transparent 38%, black 100%);
+}
+
+.myiui-liquid-glass--clear::after {
+  opacity: calc(0.75 + var(--myiui-lg-glow-weight) * 0.8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, transparent 20%, transparent 80%, rgba(var(--myiui-accent-rgb), 0.45) 100%);
+}
+
+/* Compact · 物品栏单格 */
+.myiui-liquid-glass-compact {
+  border-radius: var(--myiui-lg-superellipse-rx-sm) / var(--myiui-lg-superellipse-ry-sm);
+  backdrop-filter: blur(calc(var(--myiui-lg-blur-radius) * 8px)) saturate(0.9);
+  -webkit-backdrop-filter: blur(calc(var(--myiui-lg-blur-radius) * 8px)) saturate(0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+.myiui-liquid-glass-compact::before {
+  inset: -12%;
+  transform: scale(1.03);
+  opacity: 0.65;
+}
+
+.myiui-liquid-glass-compact::after {
+  opacity: 0.45;
+}
+
+/* 选中槽位 · 更强 Fresnel 冷光晕 */
+.myiui-hotbar-slot.myiui-liquid-glass-compact[data-selected="true"]::after {
+  opacity: calc(0.85 + var(--myiui-lg-glow-weight));
+  background:
+    linear-gradient(135deg, rgba(255, 70, 80, calc(var(--myiui-lg-chroma) * 180)) 0%, transparent 14%),
+    linear-gradient(315deg, rgba(70, 130, 255, calc(var(--myiui-lg-chroma) * 180)) 0%, transparent 14%),
+    linear-gradient(180deg, rgba(var(--myiui-accent-rgb), 0.65) 0%, transparent 25%, transparent 75%, rgba(var(--myiui-accent-rgb), 0.55) 100%);
+}
+
+.myiui-hotbar-slot.myiui-liquid-glass-compact[data-selected="true"]::before {
+  opacity: 1;
+  background:
+    radial-gradient(
+      ellipse 80% 75% at 50% 35%,
+      rgba(var(--myiui-accent-rgb), 0.18) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse 110% 105% at 50% 50%,
+      transparent 50%,
+      rgba(var(--myiui-accent-rgb), 0.22) 85%,
+      rgba(var(--myiui-accent-rgb), 0.45) 100%
+    );
+}
+
+/* 夜间 · uDarkness */
+.myiui-hud[data-darkness="true"] {
+  --myiui-lg-darkness: 0.35;
+}
+
+.myiui-hud[data-glass-mode="flat"] .myiui-liquid-only {
+  display: none;
+}
+
+.myiui-hud[data-glass-mode="flat"] .myiui-status-panel,
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-tray,
+.myiui-hud[data-glass-mode="flat"] .myiui-appleskin-tooltip {
+  background: var(--myiui-glass-bg);
+  backdrop-filter: blur(var(--myiui-glass-blur));
+  -webkit-backdrop-filter: blur(var(--myiui-glass-blur));
+  border: 1px solid var(--myiui-glass-border);
+  border-radius: var(--myiui-radius-md);
+  box-shadow: none;
+}
+
+.myiui-hud[data-glass-mode="flat"] .myiui-status-panel::before,
+.myiui-hud[data-glass-mode="flat"] .myiui-status-panel::after,
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-tray::before,
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-tray::after,
+.myiui-hud[data-glass-mode="flat"] .myiui-appleskin-tooltip::before,
+.myiui-hud[data-glass-mode="flat"] .myiui-appleskin-tooltip::after {
+  display: none;
+}
+
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-slot.myiui-liquid-glass-compact {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--myiui-radius-sm);
+  box-shadow: none;
+}
+
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-slot.myiui-liquid-glass-compact::before,
+.myiui-hud[data-glass-mode="flat"] .myiui-hotbar-slot.myiui-liquid-glass-compact::after {
+  display: none;
+}
+
+/* ── HUD 根容器 ── */
+.myiui-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--myiui-font-body);
+  color: rgba(255, 255, 255, 0.92);
+  z-index: var(--myiui-z-hud-bars);
+  transform: scale(var(--myiui-hud-scale));
+  transform-origin: bottom center;
+}
+
+.myiui-hud * {
+  box-sizing: border-box;
+}
+
+/* ── 状态栏区域（左下，原版 MC 位置） ── */
+.myiui-status-cluster {
+  position: absolute;
+  left: var(--myiui-hud-safe-left);
+  bottom: calc(var(--myiui-hud-safe-bottom) + 68px); /* 物品栏上方 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--myiui-hud-gap);
+  width: var(--myiui-status-width);
+  pointer-events: auto;
+}
+
+.myiui-status-panel {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--myiui-status-row-gap);
+}
+
+.myiui-status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.myiui-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.myiui-status-label {
+  font-size: var(--myiui-status-label-size);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.myiui-status-label svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.75;
+}
+
+.myiui-status-value {
+  font-family: var(--myiui-font-mono);
+  font-size: var(--myiui-status-label-size);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── 轨道通用 ── */
+.myiui-bar-track {
+  position: relative;
+  width: 100%;
+  height: var(--myiui-status-bar-height);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: var(--myiui-status-bar-radius);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.myiui-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 生命条 ── */
+.myiui-health-track .myiui-bar-fill--health {
+  width: var(--health-pct);
+  background: var(--myiui-health-fill);
+  box-shadow: 0 0 8px rgba(var(--myiui-success-rgb), 0.35);
+}
+
+.myiui-health-track[data-low="true"] .myiui-bar-fill--health {
+  background: var(--myiui-health-fill-low);
+  box-shadow: 0 0 10px rgba(var(--myiui-danger-rgb), 0.45);
+  animation: myiui-pulse-danger 1.8s ease-in-out infinite;
+}
+
+.myiui-health-track[data-damaged="true"] .myiui-bar-fill--health {
+  animation: myiui-damage-flash 0.4s ease-out;
+}
+
+.myiui-bar-fill--absorption {
+  width: var(--absorption-pct);
+  background: linear-gradient(90deg, rgba(232, 197, 71, 0.9) 0%, rgba(255, 220, 100, 0.85) 100%);
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+
+@keyframes myiui-pulse-danger {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.85; filter: brightness(1.15); }
+}
+
+@keyframes myiui-damage-flash {
+  0% { filter: brightness(2); }
+  100% { filter: brightness(1); }
+}
+
+/* ── 饥饿条 — 三层结构（AppleSkin 兼容） ── */
+.myiui-hunger-stack {
+  position: relative;
+  width: 100%;
+  height: var(--myiui-status-bar-height);
+}
+
+.myiui-hunger-stack .myiui-bar-track {
+  position: absolute;
+  inset: 0;
+}
+
+/* 层 1：底层轨道（已在 .myiui-bar-track） */
+/* 层 2：饱和度（saturationFill）— 独立层，AppleSkin 驱动 */
+.myiui-bar-fill--saturation {
+  width: var(--saturation-pct);
+  background: var(--myiui-saturation);
+  z-index: 1;
+  transition: width 0.4s ease;
+}
+
+/* 层 3：饥饿（hungerFill） */
+.myiui-bar-fill--hunger {
+  width: var(--hunger-pct);
+  background: var(--myiui-hunger-fill);
+  z-index: 2;
+  opacity: 0.92;
+}
+
+/* 耗尽指示：轨道底部细线 */
+.myiui-exhaustion-indicator {
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  height: 2px;
+  width: calc(var(--exhaustion-pct) * 1);
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 1px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.myiui-hunger-row[data-appleskin="true"] .myiui-exhaustion-indicator {
+  opacity: calc(var(--exhaustion-pct) / 100 * 0.8 + 0.2);
+}
+
+.myiui-hunger-row:not([data-appleskin="true"]) .myiui-bar-fill--saturation {
+  display: none;
+}
+
+/* ── 护甲/氧气次要行 ── */
+.myiui-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s, opacity 0.3s, padding 0.3s;
+}
+
+.myiui-secondary-row[data-visible="true"] {
+  max-height: 24px;
+  opacity: 1;
+  padding-top: 4px;
+}
+
+.myiui-armor-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.myiui-armor-pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: rgba(180, 190, 210, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.myiui-armor-pip[data-filled="true"] {
+  background: linear-gradient(135deg, oklch(75% 0.04 250), oklch(65% 0.06 250));
+  box-shadow: 0 0 4px rgba(180, 200, 230, 0.4);
+}
+
+.myiui-oxygen-mini {
+  flex: 1;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.myiui-oxygen-mini-fill {
+  height: 100%;
+  background: var(--myiui-accent);
+  border-radius: inherit;
+}
+
+/* ── AppleSkin Tooltip ── */
+.myiui-appleskin-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  z-index: var(--myiui-z-hud-tooltip);
+  min-width: 180px;
+  padding: 10px 12px;
+}
+
+.myiui-hunger-row[data-appleskin="true"]:hover .myiui-appleskin-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.myiui-tooltip-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+}
+
+.myiui-tooltip-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  font-size: 11px;
+}
+
+.myiui-tooltip-grid dt {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.myiui-tooltip-grid dd {
+  font-family: var(--myiui-font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.myiui-tooltip-grid dd.accent { color: var(--myiui-accent); }
+.myiui-tooltip-grid dd.gold { color: var(--myiui-absorption); }
+.myiui-tooltip-grid dd.success { color: var(--myiui-success); }
+
+/* ── 物品栏 ── */
+.myiui-hotbar-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: var(--myiui-hud-safe-bottom);
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.myiui-hotbar-tray {
+  display: flex;
+  align-items: center;
+  gap: var(--myiui-hotbar-gap);
+  padding: var(--myiui-hotbar-padding);
+}
+
+.myiui-hotbar-slots {
+  display: flex;
+  gap: var(--myiui-hotbar-gap);
+}
+
+.myiui-hotbar-slot {
+  position: relative;
+  width: var(--myiui-hotbar-slot);
+  height: var(--myiui-hotbar-slot);
+  border-radius: var(--myiui-radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.myiui-hotbar-slot.myiui-liquid-glass-compact {
+  background: transparent;
+  border-color: transparent;
+}
+
+.myiui-hotbar-slot.myiui-liquid-glass-compact[data-selected="true"] {
+  border-color: transparent;
+  box-shadow:
+    0 0 0 1px rgba(var(--myiui-accent-rgb), 0.35),
+    0 0 16px rgba(var(--myiui-accent-rgb), 0.28);
+}
+
+.myiui-hotbar-slot[data-selected="true"] {
+  border-color: var(--myiui-accent);
+  box-shadow: 0 0 0 1px rgba(var(--myiui-accent-rgb), 0.4),
+              0 0 12px rgba(var(--myiui-accent-rgb), 0.25);
+}
+
+.myiui-hotbar-slot[data-selected="true"]::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: var(--myiui-accent);
+  border-radius: var(--myiui-radius-pill);
+  box-shadow: 0 0 8px rgba(var(--myiui-accent-rgb), 0.6);
+}
+
+.myiui-slot-icon {
+  position: absolute;
+  inset: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.myiui-slot-count {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-family: var(--myiui-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  color: #fff;
+}
+
+.myiui-slot-durability {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.myiui-slot-durability-fill {
+  height: 100%;
+  background: var(--myiui-success);
+  border-radius: inherit;
+  transition: width 0.2s;
+}
+
+.myiui-slot-durability-fill[data-low="true"] {
+  background: var(--myiui-danger);
+}
+
+.myiui-slot-cooldown {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    rgba(0, 0, 0, 0.65) var(--cooldown-pct, 0%),
+    transparent var(--cooldown-pct, 0%)
+  );
+  pointer-events: none;
+}
+
+.myiui-offhand-hint {
+  width: 36px;
+  height: 36px;
+  margin-left: 6px;
+  opacity: 0.55;
+  border-radius: var(--myiui-radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.04em;
+}

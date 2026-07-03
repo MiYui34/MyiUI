@@ -1,0 +1,26 @@
+{
+  "id": "options_hub",
+  "title": "选项",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回主菜单", "target": "title-screen.html" }
+  },
+  "sections": [
+    {
+      "id": "categories",
+      "type": "nav_list",
+      "items": [
+        { "id": "video", "label": "视频设置", "target": "options-video.html", "icon": "monitor" },
+        { "id": "sound", "label": "音频设置", "target": "options-sound.html", "icon": "speaker" },
+        { "id": "controls", "label": "控制", "target": "options-controls.html", "icon": "keyboard" },
+        { "id": "language", "label": "语言", "target": "options-language.html", "icon": "globe" },
+        { "id": "chat", "label": "聊天", "target": "options-chat.html", "icon": "chat" },
+        { "id": "accessibility", "label": "辅助功能", "target": "options-accessibility.html", "icon": "accessibility" },
+        { "id": "skin", "label": "皮肤自定义", "target": "options-skin.html", "icon": "skin" },
+        { "id": "resource_packs", "label": "资源包", "target": "options-resource-packs.html", "icon": "pack" }
+      ]
+    }
+  ],
+  "components": ["navList", "glassButton"]
+}

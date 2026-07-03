@@ -1,0 +1,13 @@
+{
+  "source": "https://github.com/Jacquesqwq/LiquidGlassShader",
+  "variant": "liquidGlassV2Tinted",
+  "in_game_only": true,
+  "capture": "backbuffer_blit_mipmap",
+  "defaults": {
+    "noise": 0.28,
+    "refraction_power": 1.45,
+    "tint_strength": 0.24,
+    "chroma_strength": 0.018,
+    "darkness": 0.12
+  }
+}

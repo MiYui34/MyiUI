@@ -1,0 +1,232 @@
+{
+  "schemaVersion": "1.0.0",
+  "component": "MyiUIChatPanel",
+  "designSystem": "Glass v2",
+  "description": "Minecraft in-game chat overlay with frosted glass aesthetic for MyiUI ImGui implementation",
+
+  "panel": {
+    "anchor": "bottom-left",
+    "offset": { "x": 12, "y": 12 },
+    "width": 420,
+    "minHeight": 200,
+    "maxHeightPercent": 60,
+    "borderRadius": 14,
+    "padding": { "x": 16, "y": 14 },
+    "zIndex": 100
+  },
+
+  "colors": {
+    "accent": {
+      "hex": "#5AC8FA",
+      "rgb": [90, 200, 250],
+      "rgba": "rgba(90, 200, 250, 1.0)"
+    },
+    "glassBackground": {
+      "rgba": "rgba(15, 18, 25, 0.72)",
+      "rgb": [15, 18, 25],
+      "alpha": 0.72
+    },
+    "glassBorder": {
+      "rgba": "rgba(90, 200, 250, 0.28)",
+      "rgb": [90, 200, 250],
+      "alpha": 0.28
+    },
+    "textPrimary": {
+      "rgba": "rgba(255, 255, 255, 0.92)",
+      "alpha": 0.92
+    },
+    "textBody": {
+      "rgba": "rgba(255, 255, 255, 0.88)",
+      "alpha": 0.88
+    },
+    "textMuted": {
+      "rgba": "rgba(160, 165, 175, 0.85)",
+      "rgb": [160, 165, 175],
+      "alpha": 0.85
+    },
+    "textDim": {
+      "rgba": "rgba(255, 255, 255, 0.35)",
+      "alpha": 0.35
+    },
+    "goldAccent": {
+      "hex": "#FFB830",
+      "rgb": [255, 184, 48]
+    },
+    "rankDefault": {
+      "rgba": "rgba(160, 165, 175, 0.85)",
+      "badgeBackground": "rgba(160, 165, 175, 0.08)"
+    },
+    "rankGold": {
+      "hex": "#FFB830",
+      "badgeBackground": "rgba(255, 184, 48, 0.10)"
+    },
+    "rankSpecial": {
+      "hex": "#5AC8FA",
+      "badgeBackground": "rgba(90, 200, 250, 0.10)",
+      "badgeBorder": "rgba(90, 200, 250, 0.22)"
+    },
+    "topHighlight": {
+      "rgba": "rgba(255, 255, 255, 0.15)",
+      "alpha": 0.15
+    },
+    "glowOverlay": {
+      "color": "rgba(90, 200, 250, 0.08)",
+      "type": "radial-gradient",
+      "origin": { "x": "-10%", "y": "110%" },
+      "size": { "width": "120%", "height": "80%" },
+      "fadeAt": "55%"
+    }
+  },
+
+  "effects": {
+    "backdropBlur": {
+      "blurPx": 20,
+      "saturate": 1.3,
+      "imguiNote": "Use ImGui blur pass or shader-based frosted glass; CSS backdrop-filter is reference only"
+    },
+    "boxShadow": [
+      { "offsetX": 0, "offsetY": 8, "blur": 32, "color": "rgba(0, 0, 0, 0.28)" },
+      { "offsetX": 0, "offsetY": 2, "blur": 8, "color": "rgba(0, 0, 0, 0.12)" }
+    ],
+    "innerTopHighlight": {
+      "height": 1,
+      "color": "rgba(255, 255, 255, 0.15)",
+      "insetHorizontal": 12
+    }
+  },
+
+  "typography": {
+    "fontFamily": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif",
+    "body": {
+      "fontSize": 13.5,
+      "lineHeight": 1.6,
+      "fontWeight": 400
+    },
+    "systemMessage": {
+      "fontSize": 14,
+      "lineHeight": 1.6,
+      "fontWeight": 400
+    },
+    "username": {
+      "fontWeight": 500
+    },
+    "rankBadge": {
+      "fontSize": 12,
+      "fontWeight": 500,
+      "letterSpacing": 0.01,
+      "paddingX": 5,
+      "borderRadius": 4
+    }
+  },
+
+  "layout": {
+    "messageGap": 4,
+    "separatorPadding": 5,
+    "scrollable": true,
+    "scrollbar": {
+      "width": 4,
+      "thumbColor": "rgba(90, 200, 250, 0.22)",
+      "thumbHoverColor": "rgba(90, 200, 250, 0.35)"
+    }
+  },
+
+  "inputField": {
+    "enabled": false,
+    "placeholder": "输入消息… (Enter 发送)",
+    "borderRadius": 10,
+    "padding": { "x": 12, "y": 9 },
+    "background": "rgba(15, 18, 25, 0.55)",
+    "border": "rgba(90, 200, 250, 0.18)",
+    "borderFocus": "rgba(90, 200, 250, 0.42)",
+    "focusRing": "rgba(90, 200, 250, 0.08)",
+    "blurPx": 12,
+    "saturate": 1.2
+  },
+
+  "animation": {
+    "entrance": {
+      "name": "panel-enter",
+      "durationMs": 550,
+      "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+      "from": { "opacity": 0, "translateY": 14 },
+      "to": { "opacity": 1, "translateY": 0 }
+    }
+  },
+
+  "messageSchema": {
+    "format": "[Rank] | [Username] > [Message text]",
+    "types": {
+      "system": {
+        "description": "System/notification line without separator",
+        "fields": ["rank", "text"],
+        "rankStyle": "special",
+        "textColor": "#5AC8FA",
+        "fontSize": 14
+      },
+      "chat": {
+        "description": "Standard player chat line",
+        "fields": ["rank", "username", "text"],
+        "separators": {
+          "afterRank": "|",
+          "beforeText": ">"
+        }
+      }
+    },
+    "rankTiers": {
+      "default": {
+        "examples": ["黑铁", "Iron"],
+        "textColor": "rgba(160, 165, 175, 0.85)",
+        "badgeBackground": "rgba(160, 165, 175, 0.08)"
+      },
+      "gold": {
+        "examples": ["黄金", "Gold"],
+        "textColor": "#FFB830",
+        "badgeBackground": "rgba(255, 184, 48, 0.10)"
+      },
+      "special": {
+        "examples": ["Winter", "Admin", "ModBot"],
+        "textColor": "#5AC8FA",
+        "badgeBackground": "rgba(90, 200, 250, 0.10)",
+        "badgeBorder": "rgba(90, 200, 250, 0.22)"
+      }
+    },
+    "fieldColors": {
+      "rank": "tier-dependent",
+      "separator": "rgba(255, 255, 255, 0.35)",
+      "username": "rgba(255, 255, 255, 0.92)",
+      "messageText": "rgba(255, 255, 255, 0.88)"
+    }
+  },
+
+  "cssVariableMap": {
+    "--accent": "colors.accent.hex",
+    "--accent-rgb": "colors.accent.rgb",
+    "--glass-bg": "colors.glassBackground.rgba",
+    "--glass-border": "colors.glassBorder.rgba",
+    "--text-primary": "colors.textPrimary.rgba",
+    "--text-body": "colors.textBody.rgba",
+    "--text-muted": "colors.textMuted.rgba",
+    "--text-dim": "colors.textDim.rgba",
+    "--gold-accent": "colors.goldAccent.hex",
+    "--rank-default": "colors.rankDefault.rgba",
+    "--rank-gold": "colors.rankGold.hex",
+    "--rank-special": "colors.rankSpecial.hex",
+    "--panel-width": "panel.width (px suffix in CSS)",
+    "--panel-radius": "panel.borderRadius (px suffix in CSS)",
+    "--blur-amount": "effects.backdropBlur.blurPx (px suffix in CSS)",
+    "--blur-saturate": "effects.backdropBlur.saturate"
+  },
+
+  "sampleMessages": [
+    { "type": "system", "rank": "Winter", "text": "注入修改成功" },
+    { "type": "chat", "rank": "黑铁", "rankTier": "default", "username": "Steve_042", "text": "有人一起下矿吗？" },
+    { "type": "chat", "rank": "黄金", "rankTier": "gold", "username": "LunarFox", "text": "我在 -384 找到了钻石层，快来" },
+    { "type": "chat", "rank": "Iron", "rankTier": "default", "username": "BlockMaster", "text": "gg，刚才那只 creeper 差点把我送走" },
+    { "type": "chat", "rank": "Winter", "rankTier": "special", "username": "Admin", "text": "服务器将在 10 分钟后维护，请保存进度" },
+    { "type": "chat", "rank": "黄金", "rankTier": "gold", "username": "PixelNova", "text": "新出的毛玻璃 UI 看起来不错" },
+    { "type": "chat", "rank": "黑铁", "rankTier": "default", "username": "萌新_Kira", "text": "请问怎么打开 MyiUI 面板？" },
+    { "type": "chat", "rank": "Iron", "rankTier": "default", "username": "CraftKing", "text": "按 Right Shift，然后在设置里找 Chat" },
+    { "type": "chat", "rank": "Winter", "rankTier": "special", "username": "ModBot", "text": "欢迎加入服务器！输入 /help 查看指令" },
+    { "type": "chat", "rank": "黄金", "rankTier": "gold", "username": "EchoBlade", "text": "今晚建个玻璃穹顶吧，正好配这个 UI 风格" }
+  ]
+}

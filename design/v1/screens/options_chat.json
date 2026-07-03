@@ -1,0 +1,32 @@
+{
+  "id": "options_chat",
+  "title": "聊天",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" }
+  },
+  "sections": [
+    {
+      "id": "display",
+      "label": "显示",
+      "rows": [
+        { "id": "chat_visible", "type": "toggle", "label": "显示聊天", "default": true },
+        { "id": "chat_opacity", "type": "slider", "label": "聊天不透明度", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" },
+        { "id": "chat_scale", "type": "slider", "label": "聊天文字大小", "min": 50, "max": 200, "step": 10, "default": 100, "unit": "%" },
+        { "id": "chat_width", "type": "slider", "label": "聊天宽度", "min": 200, "max": 800, "step": 20, "default": 320, "unit": "px" }
+      ]
+    },
+    {
+      "id": "behavior",
+      "label": "行为",
+      "rows": [
+        { "id": "chat_colors", "type": "toggle", "label": "聊天颜色", "desc": "允许玩家在聊天中使用颜色代码", "default": true },
+        { "id": "chat_links", "type": "toggle", "label": "可点击链接", "default": true },
+        { "id": "chat_narrator", "type": "enum", "label": "旁白朗读聊天", "options": ["关闭", "系统", "全部"], "default": "关闭" }
+      ]
+    }
+  ],
+  "components": ["settingRow"]
+}

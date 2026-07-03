@@ -1,0 +1,35 @@
+{
+  "id": "options_resource_packs",
+  "title": "资源包",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" },
+    "actions": [
+      { "id": "open_folder", "label": "打开文件夹", "variant": "default" }
+    ]
+  },
+  "sections": [
+    {
+      "id": "selected",
+      "label": "已选资源包",
+      "type": "pack_list",
+      "items": [
+        { "id": "p1", "name": "Default", "desc": "Minecraft 默认资源", "enabled": true, "builtin": true },
+        { "id": "p2", "name": "MyUI Glass Pack", "desc": "毛玻璃 UI 纹理 · v0.4", "enabled": true, "builtin": false },
+        { "id": "p3", "name": "Faithful 32×", "desc": "32× 高清材质", "enabled": false, "builtin": false }
+      ]
+    },
+    {
+      "id": "available",
+      "label": "可用资源包",
+      "type": "pack_list",
+      "items": [
+        { "id": "p4", "name": "Vanilla Tweaks", "desc": "小幅视觉优化合集", "enabled": false, "builtin": false },
+        { "id": "p5", "name": "Sonic Ether 光影", "desc": "需要 OptiFabric / Iris", "enabled": false, "builtin": false, "incompatible": true }
+      ]
+    }
+  ],
+  "components": ["settingRow", "packList"]
+}

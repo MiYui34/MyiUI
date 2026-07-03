@@ -1,0 +1,39 @@
+{
+  "id": "options_accessibility",
+  "title": "辅助功能",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" }
+  },
+  "sections": [
+    {
+      "id": "vision",
+      "label": "视觉",
+      "rows": [
+        { "id": "narrator", "type": "toggle", "label": "旁白", "desc": "屏幕阅读器朗读界面元素", "default": false },
+        { "id": "high_contrast", "type": "toggle", "label": "高对比度", "default": false },
+        { "id": "distortion_effects", "type": "toggle", "label": "失真效果", "desc": "传送门、 nausea 等视觉效果", "default": true }
+      ]
+    },
+    {
+      "id": "motion",
+      "label": "动效",
+      "rows": [
+        { "id": "screen_shake", "type": "slider", "label": "受伤视角晃动", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%" },
+        { "id": "fov_effects", "type": "toggle", "label": "FOV 效果", "desc": "速度、药水等引起的视场变化", "default": true }
+      ]
+    },
+    {
+      "id": "input",
+      "label": "输入",
+      "rows": [
+        { "id": "auto_jump", "type": "toggle", "label": "自动跳跃", "default": false },
+        { "id": "toggle_sneak", "type": "toggle", "label": "切换潜行", "desc": "单击切换而非按住", "default": false },
+        { "id": "toggle_sprint", "type": "toggle", "label": "切换冲刺", "default": false }
+      ]
+    }
+  ],
+  "components": ["settingRow"]
+}

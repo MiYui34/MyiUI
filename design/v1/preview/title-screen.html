@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 主菜单</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport">
+    <div id="canvas">
+      <div class="panorama" aria-hidden="true"></div>
+      <div class="overlay" aria-hidden="true"></div>
+
+      <div class="screen">
+        <h1 class="sr-only">MyUI 主菜单</h1>
+
+        <header class="top-bar">
+          <div class="logo">
+            <div class="logo-mark">M</div>
+            MyUI
+            <span class="version">Fabric 1.21 · v0.4.2</span>
+          </div>
+          <a href="manager-screen.html" class="glass btn-manager" data-nav="manager-screen.html">
+            <svg aria-hidden="true" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="14" width="40" height="36" rx="5"/><line x1="12" y1="24" x2="52" y2="24"/><circle cx="19" cy="19" r="1.5"/><circle cx="25" cy="19" r="1.5"/><circle cx="31" cy="19" r="1.5"/></svg>
+            UI 管理器
+          </a>
+        </header>
+
+        <main class="main-layout">
+          <article class="profile-card" aria-labelledby="profile-name">
+            <div class="profile-header">
+              <div class="avatar" aria-hidden="true">SB</div>
+              <div class="profile-info">
+                <h2 id="profile-name">Steve_Builder</h2>
+                <div class="uuid">a3f2…8c1d</div>
+              </div>
+            </div>
+            <div class="status-row" role="status">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span class="status-text">在线 · 主菜单</span>
+            </div>
+            <div class="profile-meta">
+              <span>MyUI 已启用</span>
+              <span>Glass v2</span>
+            </div>
+          </article>
+
+          <nav class="menu-stack" aria-label="主菜单">
+            <a href="singleplayer.html" class="menu-btn menu-btn--primary" data-nav="singleplayer.html">
+              <svg aria-hidden="true" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="18" r="6"/><path d="M18 48c0-8 6.2-14 14-14s14 6 14 14"/></svg>
+              单人游戏
+            </a>
+            <a href="multiplayer.html" class="menu-btn" data-nav="multiplayer.html">
+              <svg aria-hidden="true" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="20" cy="20" r="5.5"/><path d="M10 44c0-7 4.5-12 10-12s10 5 10 12"/><circle cx="44" cy="20" r="5.5"/><path d="M34 44c0-7 4.5-12 10-12s10 5 10 12"/></svg>
+              多人游戏
+            </a>
+            <a href="options-hub.html" class="menu-btn" data-nav="options-hub.html">
+              <svg aria-hidden="true" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="14" y1="18" x2="50" y2="18"/><circle cx="40" cy="18" r="5"/><line x1="14" y1="32" x2="50" y2="32"/><circle cx="24" cy="32" r="5"/><line x1="14" y1="46" x2="50" y2="46"/><circle cx="36" cy="46" r="5"/></svg>
+              选项
+            </a>
+            <button type="button" class="menu-btn menu-btn--danger">
+              <svg aria-hidden="true" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="24" width="36" height="24" rx="12"/><circle cx="26" cy="36" r="7"/></svg>
+              退出游戏
+            </button>
+          </nav>
+        </main>
+
+        <footer class="footer">
+          MyUI Mod · <a href="intro-screen.html" data-nav="intro-screen.html">重播入场</a> · <a href="launcher.html" data-nav="launcher.html">Electron 启动器</a>
+        </footer>
+      </div>
+    </div>
+  </div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

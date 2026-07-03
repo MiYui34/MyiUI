@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "mode": "cover",
+  "max_decode_fps": 30,
+  "max_width": 1920,
+  "max_height": 1080,
+  "vignette_strength": 0.35,
+  "default_image": "assets/default_bg.png",
+  "fallback_color": [18, 20, 28, 255]
+}

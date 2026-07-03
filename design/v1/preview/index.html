@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 设计预览</title>
+  <style>
+    :root {
+      --accent: #5AC8FA;
+      --accent-12: rgba(90, 200, 250, 0.12);
+      --accent-24: rgba(90, 200, 250, 0.24);
+      --bg-deep: oklch(12% 0.02 250);
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.22);
+      --glass-border-accent: rgba(90, 200, 250, 0.45);
+      --fg: oklch(96% 0.005 250);
+      --fg-muted: oklch(72% 0.01 250);
+      --fg-dim: oklch(52% 0.012 250);
+      --font-display: 'Alibaba PuHuiTi', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-body: 'Alibaba PuHuiTi', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --radius-md: 14px;
+      --radius-lg: 20px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--fg);
+      background: var(--bg-deep);
+      background-image:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(90,200,250,0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(90,200,250,0.05), transparent);
+    }
+    .shell { max-width: 960px; margin: 0 auto; padding: 48px 24px 64px; }
+    header { margin-bottom: 32px; }
+    header h1 { font-family: var(--font-display); font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
+    header p { color: var(--fg-muted); max-width: 56ch; }
+    .primary-cta {
+      display: inline-flex; align-items: center; gap: 10px; margin-top: 20px;
+      padding: 14px 28px; background: rgba(90, 200, 250, 0.72);
+      border: 2px solid rgba(90, 200, 250, 0.55); border-radius: var(--radius-md);
+      color: #fff; font-family: var(--font-display); font-size: 16px; font-weight: 600;
+      text-decoration: none; transition: transform 320ms var(--spring);
+    }
+    .primary-cta:hover { transform: scale(1.05); }
+    .group-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--fg-dim); margin: 28px 0 12px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .screen-card {
+      display: flex; flex-direction: column; gap: 4px; padding: 18px;
+      background: var(--glass-bg); backdrop-filter: blur(20px) saturate(160%);
+      border: 2px solid var(--glass-border); border-radius: var(--radius-lg);
+      text-decoration: none; color: inherit;
+      transition: transform 320ms var(--spring), border-color 320ms ease;
+    }
+    .screen-card:hover { transform: scale(1.03); border-color: var(--glass-border-accent); }
+    .screen-card--featured { background: var(--accent-12); border-color: var(--glass-border-accent); }
+    .screen-card h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+    .screen-card p { font-size: 12px; color: var(--fg-dim); }
+    .screen-card .tag {
+      align-self: flex-start; margin-top: 6px; font-family: var(--font-mono);
+      font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+      color: var(--accent); background: var(--accent-24); padding: 2px 7px; border-radius: 4px;
+    }
+    .spec-links { margin-top: 32px; font-size: 13px; color: var(--fg-dim); }
+    .spec-links a { color: var(--accent); text-decoration: none; }
+    .spec-links a:hover { text-decoration: underline; }
+    footer { margin-top: 40px; font-size: 12px; color: var(--fg-dim); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <h1>MyUI 菜单系统</h1>
+      <p>基于 MyiUI 模版的 Minecraft 游戏内覆盖菜单 — 1920×1080 毛玻璃布局，Profile 卡片左置，720px 内容面板右中。规范见 components.json、motion.json、screens/。</p>
+      <a href="title-screen.html" class="primary-cta">进入主菜单</a>
+    </header>
+
+    <div class="group-label">核心流程</div>
+    <div class="grid">
+      <a href="intro-screen.html" class="screen-card screen-card--featured">
+        <h2>入场动画</h2><p>电影感开场序列</p><span class="tag">入口</span>
+      </a>
+      <a href="title-screen.html" class="screen-card screen-card--featured">
+        <h2>主菜单</h2><p>Profile + 玻璃菜单栈</p><span class="tag">1920×1080</span>
+      </a>
+      <a href="singleplayer.html" class="screen-card"><h2>单人游戏</h2><p>世界列表 · WorldCard</p></a>
+      <a href="multiplayer.html" class="screen-card"><h2>多人游戏</h2><p>服务器列表 · ServerCard</p></a>
+      <a href="options-hub.html" class="screen-card"><h2>选项</h2><p>8 类设置导航</p></a>
+    </div>
+
+    <div class="group-label">选项子页</div>
+    <div class="grid">
+      <a href="options-video.html" class="screen-card"><h2>视频设置</h2><p>toggle · slider · enum</p></a>
+      <a href="options-sound.html" class="screen-card"><h2>音频设置</h2><p>音量滑块</p></a>
+      <a href="options-controls.html" class="screen-card"><h2>控制</h2><p>keybind 绑定</p></a>
+      <a href="options-language.html" class="screen-card"><h2>语言</h2><p>enum 选择</p></a>
+      <a href="options-chat.html" class="screen-card"><h2>聊天</h2><p>显示与行为</p></a>
+      <a href="options-accessibility.html" class="screen-card"><h2>辅助功能</h2><p>视觉 · 动效 · 输入</p></a>
+      <a href="options-skin.html" class="screen-card"><h2>皮肤自定义</h2><p>模型预览</p></a>
+      <a href="options-resource-packs.html" class="screen-card"><h2>资源包</h2><p>pack_list 切换</p></a>
+    </div>
+
+    <div class="group-label">工具</div>
+    <div class="grid">
+      <a href="manager-screen.html" class="screen-card"><h2>UI 管理器</h2><p>Mod 视觉配置</p></a>
+      <a href="launcher.html" class="screen-card"><h2>Electron 启动器</h2><p>背景资源预览</p></a>
+    </div>
+
+    <div class="spec-links">
+      规范文件：
+      <a href="components.json">components.json</a> ·
+      <a href="motion.json">motion.json</a> ·
+      <a href="tokens.json">tokens.json</a> ·
+      <a href="screens/">screens/*.json</a>
+    </div>
+
+    <footer>MyUI Mod · Fabric 1.21 · 页面切换 crossfade 180ms</footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,232 @@
+{
+  "meta": {
+    "sourceFile": "myui-intro-screen.html",
+    "viewport": { "width": 1920, "height": 1080, "note": "MC 中按 Screen 实际 width/height 等比缩放" },
+    "masterDurationMs": 8000
+  },
+  "layers": [
+    {
+      "z": 0,
+      "id": "panorama-wrap",
+      "selector": ".panorama-wrap",
+      "type": "clip-container",
+      "children": ["panorama"],
+      "tracks": ["iris-open"],
+      "notes": "圆形 clip-path 揭示，center 50% 50%"
+    },
+    {
+      "z": 0,
+      "id": "panorama",
+      "selector": ".panorama",
+      "type": "background-image",
+      "inset": "-8%",
+      "tracks": ["pan-sharpen", "pan-drift"],
+      "notes": "8.2s 后可选 80s drift；MC 可省略 drift"
+    },
+    {
+      "z": 0,
+      "id": "overlay",
+      "selector": ".overlay",
+      "type": "fullscreen-tint",
+      "colorToken": "bg-overlay",
+      "tracks": ["overlay-in"]
+    },
+    {
+      "z": 1,
+      "id": "void",
+      "selector": ".void",
+      "type": "fullscreen-solid",
+      "color": "#000000",
+      "tracks": ["void-fade"]
+    },
+    {
+      "z": 2,
+      "id": "ambient-glow",
+      "selector": ".ambient-glow",
+      "type": "radial-gradient",
+      "tracks": ["ambient-glow"]
+    },
+    {
+      "z": 2,
+      "id": "light-sweep",
+      "selector": ".light-sweep",
+      "type": "rotated-gradient-band",
+      "rotationDeg": 8,
+      "tracks": ["light-sweep"]
+    },
+    {
+      "z": 3,
+      "id": "scan-line",
+      "selector": ".scan-line",
+      "type": "horizontal-line",
+      "heightPx": 1,
+      "tracks": ["scan-line"]
+    },
+    {
+      "z": 4,
+      "id": "letterbox",
+      "selector": ".letterbox-top, .letterbox-bottom",
+      "type": "letterbox-bars",
+      "heightVh": 12,
+      "tracks": ["letterbox-out"]
+    },
+    {
+      "z": 5,
+      "id": "vignette",
+      "selector": ".vignette",
+      "type": "radial-vignette",
+      "tracks": ["vignette-in"]
+    },
+    {
+      "z": 6,
+      "id": "film-grain",
+      "selector": ".film-grain",
+      "type": "noise-overlay",
+      "endOpacity": 0.045,
+      "tracks": ["film-grain"],
+      "optional": true
+    },
+    {
+      "z": 7,
+      "id": "particles",
+      "selector": "#particles",
+      "type": "canvas",
+      "tracks": [],
+      "specFile": "particles-spec.json"
+    },
+    {
+      "z": 8,
+      "id": "stage",
+      "selector": ".stage",
+      "type": "center-grid",
+      "layout": "place-items: center",
+      "children": ["emblem-wrap"]
+    },
+    {
+      "z": 8,
+      "id": "emblem-wrap",
+      "selector": ".emblem-wrap",
+      "type": "flex-column",
+      "align": "center",
+      "gapPx": 32,
+      "tracks": ["emblem-in", "emblem-out"],
+      "children": ["emblem-ring--1", "emblem-ring--2", "emblem-glass", "wordmark"]
+    },
+    {
+      "z": 8,
+      "id": "emblem-ring--1",
+      "selector": ".emblem-ring--1",
+      "type": "circle-border",
+      "sizePx": 140,
+      "tracks": ["ring-1"]
+    },
+    {
+      "z": 8,
+      "id": "emblem-ring--2",
+      "selector": ".emblem-ring--2",
+      "type": "circle-border",
+      "sizePx": 180,
+      "tracks": ["ring-2"]
+    },
+    {
+      "z": 8,
+      "id": "emblem-glass",
+      "selector": ".emblem-glass",
+      "type": "glass-panel",
+      "widthPx": 120,
+      "heightPx": 120,
+      "borderRadiusPx": 30,
+      "blurPx": 28,
+      "tracks": ["glass-shimmer"],
+      "children": ["emblem-svg"]
+    },
+    {
+      "z": 8,
+      "id": "wordmark",
+      "selector": ".wordmark",
+      "type": "text-block",
+      "tracks": ["wordmark-letters", "wordmark-tag", "wordmark-line"]
+    },
+    {
+      "z": 9,
+      "id": "boot-hud",
+      "selector": ".boot-hud",
+      "type": "bottom-bar",
+      "layout": {
+        "position": "absolute",
+        "leftPx": 40,
+        "rightPx": 40,
+        "bottomPx": 40,
+        "flexDirection": "row",
+        "justifyContent": "space-between",
+        "alignItems": "flex-end",
+        "gapPx": 24
+      },
+      "tracks": ["boot-hud-in", "boot-hud-out"],
+      "children": ["boot-log", "progress-panel"]
+    },
+    {
+      "z": 9,
+      "id": "boot-log",
+      "selector": ".boot-log",
+      "type": "glass-panel",
+      "maxWidthPx": 440,
+      "paddingPx": [16, 18],
+      "fontMonoPx": 11,
+      "tracks": ["boot-log-lines"]
+    },
+    {
+      "z": 9,
+      "id": "progress-panel",
+      "selector": ".progress-panel",
+      "type": "glass-panel",
+      "minWidthPx": 128,
+      "paddingPx": [18, 22],
+      "tracks": ["progress-ring"]
+    },
+    {
+      "z": 10,
+      "id": "success-chip",
+      "selector": ".success-chip",
+      "type": "center-chip",
+      "position": "50% 50%",
+      "paddingPx": [16, 28],
+      "tracks": ["success-chip"]
+    },
+    {
+      "z": 11,
+      "id": "skip-hint",
+      "selector": ".skip-hint",
+      "type": "hint-text",
+      "layout": { "bottomPx": 28, "rightPx": 28 },
+      "visibleAfterMs": 4000,
+      "opacity": 0.35,
+      "textKey": "skipHint"
+    },
+    {
+      "z": 12,
+      "id": "exit-fade",
+      "selector": ".exit-fade",
+      "type": "fullscreen-solid",
+      "colorToken": "bg-deep",
+      "tracks": ["exit-fade"]
+    }
+  ],
+  "renderOrder": [
+    "panorama-wrap",
+    "overlay",
+    "void",
+    "ambient-glow",
+    "light-sweep",
+    "scan-line",
+    "letterbox",
+    "vignette",
+    "film-grain",
+    "particles",
+    "stage",
+    "boot-hud",
+    "success-chip",
+    "skip-hint",
+    "exit-fade"
+  ]
+}

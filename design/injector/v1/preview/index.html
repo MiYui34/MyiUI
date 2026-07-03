@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyiUI Injector — Design v1</title>
+  <style>
+    :root {
+      --canvas: #12141c;
+      --panel: rgba(18, 20, 30, 0.92);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --radius: 14px;
+      --accent: #78a8ff;
+      --accent-hover: #8cbcff;
+      --text: #fff;
+      --text-dim: rgba(180, 186, 198, 0.86);
+      --text-muted: rgba(120, 128, 145, 0.78);
+      --success: #48c78e;
+      --warning: #ffc148;
+      --row-hover: rgba(255, 255, 255, 0.06);
+      --row-selected: rgba(120, 168, 255, 0.22);
+      --row-recommended: rgba(120, 168, 255, 0.1);
+      --ease: cubic-bezier(0.33, 1, 0.68, 1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(120, 168, 255, 0.12), transparent),
+        var(--canvas);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .window {
+      width: min(520px, 100%);
+      min-height: 640px;
+      background: var(--panel);
+      border: 1px solid var(--glass-border);
+      border-radius: calc(var(--radius) + 4px);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 24px 12px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      box-shadow: 0 4px 16px rgba(120, 168, 255, 0.35);
+    }
+    .header-text h1 {
+      font-size: 22px; font-weight: 600; letter-spacing: 0.1em;
+    }
+    .header-text p {
+      font-size: 13px; color: var(--text-dim); margin-top: 2px;
+    }
+    .section {
+      padding: 0 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section-title { font-size: 14px; font-weight: 600; }
+    .section-hint { font-size: 12px; color: var(--text-muted); }
+    .toolbar { display: flex; gap: 8px; }
+    .btn-ghost {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-dim);
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 160ms var(--ease), color 160ms var(--ease);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-ghost.active { border-color: rgba(120,168,255,0.45); color: var(--accent); }
+    .process-list {
+      flex: 1;
+      min-height: 220px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: rgba(0,0,0,0.18);
+    }
+    .process-list table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .process-list th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .process-list td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .process-list tr:hover td { background: var(--row-hover); }
+    .process-list tr.selected td { background: var(--row-selected); }
+    .process-list tr.recommended td { background: var(--row-recommended); }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-rec { background: rgba(120,168,255,0.2); color: var(--accent); }
+    .badge-ok { background: rgba(72,199,142,0.18); color: var(--success); }
+    .badge-warn { background: rgba(255,193,72,0.15); color: var(--warning); }
+    .cmdline {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+    .actions { padding: 0 24px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .btn-primary {
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), #8b9dff);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(120, 168, 255, 0.35);
+      transition: transform 160ms var(--ease), filter 160ms var(--ease);
+    }
+    .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    .btn-primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .status-panel {
+      margin: 0 24px 16px;
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      background: rgba(0,0,0,0.22);
+      min-height: 120px;
+      padding: 12px 14px;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-dim);
+      overflow-y: auto;
+    }
+    .status-panel .ok { color: var(--success); }
+    .status-panel .err { color: #ff6b6b; }
+    .status-panel .info { color: var(--accent); }
+    .footer {
+      padding: 12px 24px 18px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+  </style>
+</head>
+<body>
+  <div class="window">
+    <header class="header">
+      <div class="logo-mark" aria-hidden="true"></div>
+      <div class="header-text">
+        <h1>MYIUI</h1>
+        <p>Injector · Attach Agent · Inject Overlay</p>
+      </div>
+    </header>
+
+    <section class="section">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Java 进程</div>
+          <div class="section-hint">启动 Minecraft 并停在主菜单，然后刷新列表</div>
+        </div>
+        <div class="toolbar">
+          <button class="btn-ghost" type="button">刷新</button>
+          <button class="btn-ghost active" type="button">自动刷新</button>
+        </div>
+      </div>
+      <div class="process-list">
+        <table>
+          <thead>
+            <tr>
+              <th>进程</th>
+              <th>PID</th>
+              <th>内存</th>
+              <th>识别</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="recommended selected">
+              <td>java.exe</td>
+              <td>79860</td>
+              <td>1.7 GB</td>
+              <td>
+                <span class="badge badge-rec">推荐</span>
+                <div class="cmdline">…net.minecraft.client.main.Main…1.21.6…fabric…</div>
+              </td>
+            </tr>
+            <tr>
+              <td>java.exe</td>
+              <td>55920</td>
+              <td>793 MB</td>
+              <td>
+                <span class="badge badge-warn">可能是启动器</span>
+                <div class="cmdline">…launcher…</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button class="btn-primary" type="button">注入 MyiUI</button>
+    </div>
+
+    <div class="status-panel">
+      <div class="info">[MyiUI] Root: D:\下载\MyiUI</div>
+      <div>已选中 PID 79860 (java.exe, 1.7 GB)</div>
+      <div class="ok">[MyiUI] Agent attached successfully.</div>
+      <div class="ok">[MyiUI] Injection complete for PID 79860</div>
+    </div>
+
+    <footer class="footer">
+      需管理员权限时请以管理员运行 · 每次重启 MC 需重新注入
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyiUI — 灵感岛 · Glass v2</title>
+  <link rel="stylesheet" href="css/island-system.css">
+</head>
+<body class="island-scene">
+  <div class="island-scene__vignette"></div>
+  <div class="island-wrap">
+    <div id="island" class="island-pill" data-state="collapsed">
+      <span class="island-pill__fps">120 FPS</span>
+      <div class="island-pill__slots">
+        <span class="island-slot island-slot--active" title="music"></span>
+        <span class="island-slot" title="quick_menu"></span>
+        <span class="island-slot" title="system"></span>
+        <span class="island-slot" title="custom"></span>
+      </div>
+    </div>
+    <div class="island-controls">
+      <button class="island-btn" data-state="collapsed">收起态</button>
+      <button class="island-btn" data-state="expanded">通知展开</button>
+      <button class="island-btn" data-state="lyrics">歌词占位</button>
+      <button class="island-btn" id="cycle">轮播演示</button>
+    </div>
+    <p class="island-spec-note">
+      Glass v2 灵感岛：顶部居中 pill，进入 overshoot ≈ 1.06，退出 ease-out。
+      默认常驻 <strong>FPS + 4 槽位</strong>；通知态弹簧展开至 min(360px, 42vw)。
+    </p>
+  </div>
+  <script>
+    const island = document.getElementById('island');
+    const states = {
+      collapsed: () => {
+        island.className = 'island-pill';
+        island.dataset.state = 'collapsed';
+        island.innerHTML = `
+          <span class="island-pill__fps">120 FPS</span>
+          <div class="island-pill__slots">
+            <span class="island-slot island-slot--active"></span>
+            <span class="island-slot"></span>
+            <span class="island-slot"></span>
+            <span class="island-slot"></span>
+          </div>`;
+      },
+      expanded: () => {
+        island.className = 'island-pill island-pill--expanded';
+        island.dataset.state = 'expanded';
+        island.innerHTML = `
+          <div class="island-pill__title">测试通知</div>
+          <div class="island-pill__subtitle">弹性展开动画 · 槽位 0 高亮</div>`;
+      },
+      lyrics: () => {
+        island.className = 'island-pill island-pill--lyrics';
+        island.dataset.state = 'lyrics';
+        island.innerHTML = `
+          <div class="island-pill__lyrics">正在播放 — 占位曲目</div>
+          <div class="island-pill__lyrics-line2">第二行歌词滚动预留（网易云 Phase 3）</div>`;
+      }
+    };
+    document.querySelectorAll('.island-btn[data-state]').forEach(btn => {
+      btn.addEventListener('click', () => states[btn.dataset.state]());
+    });
+    const order = ['collapsed', 'expanded', 'lyrics'];
+    let i = 0;
+    document.getElementById('cycle').addEventListener('click', () => {
+      states[order[i % order.length]]();
+      i++;
+    });
+  </script>
+</body>
+</html>

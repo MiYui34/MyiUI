@@ -1,0 +1,37 @@
+{
+  "id": "options_skin",
+  "title": "皮肤自定义",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" }
+  },
+  "sections": [
+    {
+      "id": "model",
+      "label": "模型",
+      "rows": [
+        { "id": "skin_model", "type": "enum", "label": "玩家模型", "options": ["经典（Steve）", "纤细（Alex）"], "default": "经典（Steve）" },
+        { "id": "cape", "type": "toggle", "label": "显示披风", "default": true },
+        { "id": "jacket", "type": "toggle", "label": "显示外套层", "default": true },
+        { "id": "hat", "type": "toggle", "label": "显示帽子层", "default": true }
+      ]
+    },
+    {
+      "id": "source",
+      "label": "皮肤来源",
+      "rows": [
+        { "id": "skin_source", "type": "enum", "label": "当前皮肤", "options": ["Minecraft 账户", "本地文件", "MyUI 预设"], "default": "Minecraft 账户" },
+        { "id": "upload_skin", "type": "keybind", "label": "选择皮肤文件", "default": "浏览…", "action": "file_picker" }
+      ]
+    },
+    {
+      "id": "preview",
+      "label": "预览",
+      "type": "skin_preview",
+      "rotation": true
+    }
+  ],
+  "components": ["settingRow", "skinPreview"]
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 多人游戏</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport">
+    <div id="canvas">
+      <div class="panorama" aria-hidden="true"></div>
+      <div class="overlay" aria-hidden="true"></div>
+      <div class="screen">
+        <header class="top-bar">
+          <div class="logo"><div class="logo-mark">M</div>MyUI<span class="version">多人游戏</span></div>
+        </header>
+        <main class="main-layout">
+          <article class="profile-card">
+            <div class="profile-header">
+              <div class="avatar">SB</div>
+              <div class="profile-info"><h2>Steve_Builder</h2><div class="uuid">a3f2…8c1d</div></div>
+            </div>
+            <div class="status-row"><span class="status-dot"></span><span class="status-text">浏览服务器</span></div>
+          </article>
+          <section class="content-panel">
+            <header class="panel-header">
+              <a href="title-screen.html" class="back-btn" data-nav="title-screen.html">
+                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M38 14L22 32l16 18"/></svg>
+                返回
+              </a>
+              <h1>多人游戏</h1>
+              <div class="panel-actions">
+                <button type="button" class="glass-btn glass-btn--sm">添加服务器</button>
+                <button type="button" class="glass-btn glass-btn--sm glass-btn--primary">直接连接</button>
+              </div>
+            </header>
+            <div class="panel-body">
+              <div class="section-label">服务器列表</div>
+              <div class="server-list">
+                <div class="server-card selected">
+                  <div class="server-icon">H</div>
+                  <div class="server-info"><h3>Hypixel</h3><p>mc.hypixel.net</p></div>
+                  <div class="server-meta">
+                    <span class="ping">86 ms</span>
+                    <span style="font-size:12px;color:var(--fg-dim)">42,318 / 200,000</span>
+                    <span class="server-dot"></span>
+                  </div>
+                </div>
+                <div class="server-card">
+                  <div class="server-icon">L</div>
+                  <div class="server-info"><h3>局域网 · Steve的世界</h3><p>192.168.1.42:25565</p></div>
+                  <div class="server-meta">
+                    <span class="ping">12 ms</span>
+                    <span style="font-size:12px;color:var(--fg-dim)">2 / 8</span>
+                    <span class="server-dot"></span>
+                  </div>
+                </div>
+                <div class="server-card">
+                  <div class="server-icon">F</div>
+                  <div class="server-info"><h3>Fabric 测试服</h3><p>fabric.example.com</p></div>
+                  <div class="server-meta">
+                    <span class="ping ping--offline">离线</span>
+                    <span style="font-size:12px;color:var(--fg-dim)">—</span>
+                    <span class="server-dot server-dot--offline"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

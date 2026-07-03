@@ -1,0 +1,7 @@
+/build/
+/agent/build/
+/agent/.gradle/
+/overlay/third_party/*.zip
+*.user
+*.suo
+.vs/

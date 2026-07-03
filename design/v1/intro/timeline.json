@@ -1,0 +1,295 @@
+{
+  "meta": {
+    "id": "myui-intro-v2",
+    "totalDurationMs": 8000,
+    "masterVar": "--dur",
+    "redirectTarget": "title-screen.html",
+    "skipDebounceMs": 800,
+    "reducedMotionDurationMs": 1000,
+    "sourceFile": "myui-intro-screen.html"
+  },
+  "easings": {
+    "spring": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+    "springGentle": "cubic-bezier(0.22, 1.2, 0.36, 1)",
+    "easePremium": "cubic-bezier(0.16, 1, 0.3, 1)",
+    "easeCinema": "cubic-bezier(0.77, 0, 0.175, 1)"
+  },
+  "acts": [
+    {
+      "id": "act-1-awakening",
+      "label": "I 觉醒",
+      "startMs": 0,
+      "endMs": 1400,
+      "elements": ["void", "ambient-glow", "light-sweep", "scan-line", "film-grain"]
+    },
+    {
+      "id": "act-2-emblem",
+      "label": "II 标识",
+      "startMs": 1200,
+      "endMs": 5200,
+      "elements": ["emblem-wrap", "emblem-rings", "emblem-glass", "wordmark", "particles-burst"]
+    },
+    {
+      "id": "act-3-iris",
+      "label": "III 穿透",
+      "startMs": 3360,
+      "endMs": 6400,
+      "elements": ["panorama-iris", "pan-sharpen", "letterbox", "boot-hud", "vignette"]
+    },
+    {
+      "id": "act-4-complete",
+      "label": "IV 完成",
+      "startMs": 6600,
+      "endMs": 8000,
+      "elements": ["success-chip", "exit-fade", "redirect"]
+    }
+  ],
+  "tracks": [
+    {
+      "id": "void-fade",
+      "target": ".void",
+      "startMs": 0,
+      "durationMs": 8000,
+      "easing": "easePremium",
+      "keyframes": [
+        { "at": 0, "opacity": 1 },
+        { "at": 0.38, "opacity": 1 },
+        { "at": 0.58, "opacity": 0.65 },
+        { "at": 1, "opacity": 0 }
+      ]
+    },
+    {
+      "id": "ambient-glow",
+      "target": ".ambient-glow",
+      "startMs": 400,
+      "durationMs": 3200,
+      "easing": "easePremium"
+    },
+    {
+      "id": "light-sweep",
+      "target": ".light-sweep",
+      "startMs": 300,
+      "durationMs": 2200,
+      "easing": "easeCinema"
+    },
+    {
+      "id": "scan-line",
+      "target": ".scan-line",
+      "startMs": 500,
+      "durationMs": 1400,
+      "easing": "easeCinema"
+    },
+    {
+      "id": "film-grain",
+      "target": ".film-grain",
+      "startMs": 800,
+      "durationMs": 1600,
+      "easing": "ease",
+      "endOpacity": 0.045
+    },
+    {
+      "id": "emblem-in",
+      "target": ".emblem-wrap",
+      "startMs": 1200,
+      "durationMs": 1600,
+      "easing": "easePremium",
+      "from": { "opacity": 0, "scale": 0.78, "translateY": 12 },
+      "to": { "opacity": 1, "scale": 1, "translateY": 0 }
+    },
+    {
+      "id": "emblem-out",
+      "target": ".emblem-wrap",
+      "startMs": 5200,
+      "durationMs": 1200,
+      "easing": "easePremium",
+      "to": { "opacity": 0, "scale": 0.96, "translateY": -32 }
+    },
+    {
+      "id": "ring-1",
+      "target": ".emblem-ring--1",
+      "startMs": 1400,
+      "durationMs": 2200,
+      "easing": "easePremium",
+      "sizePx": 140
+    },
+    {
+      "id": "ring-2",
+      "target": ".emblem-ring--2",
+      "startMs": 1800,
+      "durationMs": 2600,
+      "easing": "easePremium",
+      "sizePx": 180
+    },
+    {
+      "id": "glass-shimmer",
+      "target": ".emblem-glass::after",
+      "startMs": 1800,
+      "durationMs": 2800,
+      "easing": "easeCinema"
+    },
+    {
+      "id": "stroke-draw",
+      "target": ".emblem-glass svg .draw",
+      "startMs": 1500,
+      "durationMs": 1800,
+      "easing": "easePremium",
+      "strokeDasharray": 120,
+      "staggerMs": [150, 130, 170, 150]
+    },
+    {
+      "id": "wordmark-letters",
+      "target": ".wordmark h2 span",
+      "startMs": 2000,
+      "staggerMs": 140,
+      "durationMs": 900,
+      "easing": "easePremium",
+      "letters": ["M", "y", "U", "I"]
+    },
+    {
+      "id": "wordmark-tag",
+      "target": ".wordmark p",
+      "startMs": 2700,
+      "durationMs": 800,
+      "text": "Fabric UI Mod"
+    },
+    {
+      "id": "wordmark-line",
+      "target": ".wordmark-line",
+      "startMs": 2900,
+      "durationMs": 1000,
+      "widthPx": 48
+    },
+    {
+      "id": "iris-open",
+      "target": ".panorama-wrap",
+      "startMs": 0,
+      "durationMs": 8000,
+      "easing": "easePremium",
+      "keyframes": [
+        { "at": 0, "clipCirclePct": 0 },
+        { "at": 0.42, "clipCirclePct": 0 },
+        { "at": 0.58, "clipCirclePct": 28 },
+        { "at": 0.72, "clipCirclePct": 58 },
+        { "at": 0.88, "clipCirclePct": 92 },
+        { "at": 1, "clipCirclePct": 150 }
+      ],
+      "center": [50, 50]
+    },
+    {
+      "id": "pan-sharpen",
+      "target": ".panorama",
+      "startMs": 0,
+      "durationMs": 8000,
+      "easing": "easePremium",
+      "keyframes": [
+        { "at": 0, "blurPx": 48, "saturate": 0.5, "brightness": 0.7, "scale": 1.18 },
+        { "at": 0.42, "blurPx": 48, "saturate": 0.5, "brightness": 0.7, "scale": 1.18 },
+        { "at": 0.58, "blurPx": 28, "saturate": 0.75, "brightness": 0.85, "scale": 1.1 },
+        { "at": 0.74, "blurPx": 10, "saturate": 0.95, "brightness": 0.95, "scale": 1.06 },
+        { "at": 1, "blurPx": 0, "saturate": 1.05, "brightness": 1, "scale": 1.05 }
+      ]
+    },
+    {
+      "id": "overlay-in",
+      "target": ".overlay",
+      "startMs": 5200,
+      "durationMs": 1800,
+      "easing": "easePremium"
+    },
+    {
+      "id": "letterbox-out",
+      "target": ".letterbox-top, .letterbox-bottom",
+      "startMs": 4200,
+      "durationMs": 1200,
+      "easing": "easePremium",
+      "heightVh": 12
+    },
+    {
+      "id": "vignette-in",
+      "target": ".vignette",
+      "startMs": 2800,
+      "durationMs": 2400,
+      "endOpacity": 0.85
+    },
+    {
+      "id": "boot-hud-in",
+      "target": ".boot-hud",
+      "startMs": 3400,
+      "durationMs": 900,
+      "easing": "easePremium"
+    },
+    {
+      "id": "boot-hud-out",
+      "target": ".boot-hud",
+      "startMs": 6400,
+      "durationMs": 1000,
+      "easing": "easePremium"
+    },
+    {
+      "id": "boot-log-lines",
+      "target": ".boot-log .line",
+      "delaysMs": [3600, 4200, 4800, 5600],
+      "durationMs": 500,
+      "lines": [
+        "> init fabric-renderer … ok",
+        "> load glass-shader pipeline",
+        "> bind title-screen overlay",
+        "> ready — entering menu"
+      ]
+    },
+    {
+      "id": "progress-ring",
+      "target": ".progress-ring .fill",
+      "startMs": 0,
+      "durationMs": 8000,
+      "easing": "easePremium",
+      "circumference": 169,
+      "strokeDashoffsetFrom": 169,
+      "strokeDashoffsetTo": 0
+    },
+    {
+      "id": "success-chip",
+      "target": ".success-chip",
+      "startMs": 6600,
+      "durationMs": 1400,
+      "easing": "easePremium",
+      "text": "准备就绪"
+    },
+    {
+      "id": "exit-fade",
+      "target": ".exit-fade",
+      "startMs": 7400,
+      "durationMs": 900,
+      "easing": "easePremium",
+      "background": "var(--bg-deep)"
+    },
+    {
+      "id": "redirect",
+      "target": "window.location",
+      "startMs": 8000,
+      "action": "navigate",
+      "href": "title-screen.html"
+    }
+  ],
+  "particles": {
+    "canvasId": "particles",
+    "maxDpr": 2,
+    "burstCountFormula": "min(48, floor(width / 18))",
+    "ambientCountFormula": "min(35, floor(width / 28))",
+    "bokehCountFormula": "min(18, floor(width / 50))",
+    "burstPhaseEndMs": 3200,
+    "globalFadeStartMs": 6800,
+    "globalFadeDurationMs": 1200,
+    "centerGlowEndMs": 5200,
+    "accentColorRgb": [90, 200, 250],
+    "types": ["burst", "ambient", "bokeh"]
+  },
+  "copy": {
+    "pageTitle": "MyUI — 入场动画",
+    "progressLabel": "加载中",
+    "successChip": "准备就绪",
+    "skipHint": "按任意键或点击跳过",
+    "wordmark": "MyUI",
+    "tagline": "Fabric UI Mod"
+  }
+}

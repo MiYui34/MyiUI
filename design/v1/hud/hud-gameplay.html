@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyiUI — 游戏内 HUD 预览 · Liquid Glass</title>
+  <link rel="stylesheet" href="css/hud-system.css">
+  <style>
+    @font-face {
+      font-family: 'Alibaba PuHuiTi';
+      src: local('Alibaba PuHuiTi'), local('PingFang SC');
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--myiui-font-body);
+    }
+
+    /* ── 游戏场景占位背景 ── */
+    .game-scene {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .game-scene__sky {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        oklch(72% 0.08 230) 0%,
+        oklch(78% 0.06 210) 35%,
+        oklch(85% 0.04 200) 60%
+      );
+    }
+
+    .game-scene__terrain {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 55%;
+      background:
+        linear-gradient(180deg, transparent 0%, oklch(45% 0.12 145) 8%),
+        repeating-linear-gradient(
+          90deg,
+          oklch(42% 0.11 140) 0px,
+          oklch(44% 0.12 142) 40px,
+          oklch(40% 0.10 138) 80px
+        );
+      filter: blur(1px);
+    }
+
+    .game-scene__blocks {
+      position: absolute;
+      bottom: 18%;
+      left: 15%;
+      width: 120px;
+      height: 80px;
+      background: oklch(38% 0.06 60);
+      border-radius: 2px;
+      box-shadow:
+        60px -40px 0 oklch(42% 0.08 55),
+        140px 20px 0 oklch(50% 0.10 145),
+        200px -20px 0 oklch(36% 0.05 58);
+      opacity: 0.7;
+      filter: blur(2px);
+    }
+
+    .game-scene__blur {
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }
+
+    .game-scene__vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        ellipse 80% 70% at 50% 45%,
+        transparent 40%,
+        rgba(0, 0, 0, 0.45) 100%
+      );
+      pointer-events: none;
+    }
+
+    /* ── 演示控制面板 ── */
+    .demo-panel {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: var(--myiui-z-hud-demo);
+      width: 260px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 14px 16px;
+      pointer-events: auto;
+      font-size: 12px;
+    }
+
+    .demo-panel h2 {
+      font-family: var(--myiui-font-display);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--myiui-accent);
+      margin-bottom: 4px;
+    }
+
+    .demo-panel p {
+      font-size: 10px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .demo-section {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .demo-section:last-child { border-bottom: none; margin-bottom: 0; }
+
+    .demo-section h3 {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 8px;
+    }
+
+    .demo-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .demo-btn {
+      padding: 5px 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.8);
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .demo-btn:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.25);
+    }
+
+    .demo-btn.active {
+      background: rgba(90, 200, 250, 0.15);
+      border-color: var(--myiui-accent);
+      color: var(--myiui-accent);
+    }
+
+    .demo-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+
+    .demo-toggle input {
+      accent-color: var(--myiui-accent);
+    }
+
+    .demo-toggle span {
+      color: rgba(255,255,255,0.75);
+    }
+
+    .demo-scale {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .demo-scale input[type=range] {
+      flex: 1;
+      accent-color: var(--myiui-accent);
+    }
+
+    .demo-scale output {
+      font-family: var(--myiui-font-mono);
+      font-size: 11px;
+      color: var(--myiui-accent);
+      min-width: 32px;
+    }
+
+    /* ── 十字准星占位 ── */
+    .crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      z-index: 50;
+      pointer-events: none;
+      opacity: 0.35;
+    }
+
+    .crosshair::before,
+    .crosshair::after {
+      content: '';
+      position: absolute;
+      background: #fff;
+    }
+
+    .crosshair::before {
+      width: 2px;
+      height: 16px;
+      left: 7px;
+      top: 0;
+    }
+
+    .crosshair::after {
+      width: 16px;
+      height: 2px;
+      left: 0;
+      top: 7px;
+    }
+
+    /* ── 物品图标占位色块 ── */
+    .icon-sword { background: linear-gradient(135deg, #aaa, #666) !important; }
+    .icon-pick { background: linear-gradient(135deg, #8B6914, #5C4A0E) !important; }
+    .icon-food { background: linear-gradient(135deg, #C4783A, #8B4513) !important; }
+    .icon-block { background: linear-gradient(135deg, #5A8F4A, #3D6B30) !important; }
+    .icon-bow { background: linear-gradient(135deg, #6B4226, #4A2E18) !important; }
+    .icon-potion { background: linear-gradient(135deg, #7B68EE, #483D8B) !important; }
+    .icon-torch { background: linear-gradient(135deg, #FFD700, #FF8C00) !important; }
+    .icon-apple { background: linear-gradient(135deg, #E74C3C, #C0392B) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- 游戏场景背景 -->
+  <div class="game-scene" aria-hidden="true">
+    <div class="game-scene__sky"></div>
+    <div class="game-scene__terrain"></div>
+    <div class="game-scene__blocks"></div>
+    <div class="game-scene__blur"></div>
+    <div class="game-scene__vignette"></div>
+  </div>
+
+  <div class="crosshair" aria-hidden="true"></div>
+
+  <!-- ═══ HUD 叠层 ═══ -->
+  <div class="myiui-hud" id="hudRoot" data-glass-mode="liquid-tinted" data-darkness="false">
+
+    <!-- 状态栏 -->
+    <div class="myiui-status-cluster">
+      <div class="myiui-status-panel myiui-liquid-glass myiui-liquid-glass--tinted" id="statusPanel">
+        <span class="myiui-liquid-glass__noise liquid-only" aria-hidden="true"></span>
+
+        <!-- 生命 -->
+        <div class="myiui-status-row" id="healthRow">
+          <div class="myiui-status-header">
+            <span class="myiui-status-label">
+              <svg viewBox="0 0 12 12" fill="currentColor"><path d="M6 10.5S1.5 7 1.5 4.5a2.25 2.25 0 0 1 4.5 0 2.25 2.25 0 0 1 4.5 0C10.5 7 6 10.5 6 10.5z"/></svg>
+              生命
+            </span>
+            <span class="myiui-status-value" id="healthCaption">20 / 20</span>
+          </div>
+          <div class="myiui-bar-track myiui-health-track" id="healthTrack" data-low="false" data-damaged="false">
+            <div class="myiui-bar-fill myiui-bar-fill--health"></div>
+            <div class="myiui-bar-fill myiui-bar-fill--absorption" id="absorptionFill"></div>
+          </div>
+        </div>
+
+        <!-- 饥饿（AppleSkin 三层） -->
+        <div class="myiui-status-row myiui-hunger-row" id="hungerRow" data-appleskin="true">
+          <div class="myiui-status-header">
+            <span class="myiui-status-label">
+              <svg viewBox="0 0 12 12" fill="currentColor"><path d="M2 4h8v1.5H2V4zm0 2.5h6v1.5H2V6.5zm0 2.5h4v1.5H2V9z"/></svg>
+              饥饿
+            </span>
+            <span class="myiui-status-value" id="hungerCaption">20 / 20</span>
+          </div>
+          <div class="myiui-hunger-stack">
+            <div class="myiui-bar-track">
+              <div class="myiui-bar-fill myiui-bar-fill--saturation" id="saturationFill"></div>
+              <div class="myiui-bar-fill myiui-bar-fill--hunger" id="hungerFill"></div>
+            </div>
+            <div class="myiui-exhaustion-indicator" id="exhaustionIndicator"></div>
+          </div>
+
+          <!-- AppleSkin Tooltip -->
+          <div class="myiui-appleskin-tooltip myiui-liquid-glass myiui-liquid-glass--tinted" id="appleskinTooltip">
+            <span class="myiui-liquid-glass__noise liquid-only" aria-hidden="true"></span>
+            <div class="myiui-tooltip-title">食物数值 · AppleSkin</div>
+            <dl class="myiui-tooltip-grid">
+              <dt>饥饿</dt><dd id="tipHunger">18.0</dd>
+              <dt>饱和度</dt><dd class="gold" id="tipSaturation">12.5</dd>
+              <dt>耗尽</dt><dd id="tipExhaustion">1.75</dd>
+              <dt>预计恢复</dt><dd class="success" id="tipHeal">+6.0 HP</dd>
+            </dl>
+          </div>
+        </div>
+
+        <!-- 护甲/氧气次要行 -->
+        <div class="myiui-secondary-row" id="secondaryRow" data-visible="false">
+          <div class="myiui-armor-pips" id="armorPips"></div>
+          <div class="myiui-oxygen-mini" id="oxygenBar" style="display:none">
+            <div class="myiui-oxygen-mini-fill" id="oxygenFill" style="width:100%"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 物品栏 -->
+    <div class="myiui-hotbar-wrap">
+      <div class="myiui-hotbar-tray myiui-liquid-glass myiui-liquid-glass--tinted" id="hotbarTray">
+        <span class="myiui-liquid-glass__noise liquid-only" aria-hidden="true"></span>
+        <div class="myiui-hotbar-slots" id="hotbarSlots"></div>
+        <div class="myiui-offhand-hint" title="副手">副</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 演示控制 ═══ -->
+  <aside class="demo-panel myiui-glass" aria-label="HUD 状态演示控制">
+    <h2>MyiUI HUD 演示</h2>
+    <p>Liquid Glass · Fabric 1.21.6 · 切换状态变体预览</p>
+
+    <div class="demo-section">
+      <h3>玻璃模式</h3>
+      <div class="demo-btns" id="glassModeBtns" data-group="glass">
+        <button class="demo-btn" data-glass="flat">Flat</button>
+        <button class="demo-btn" data-glass="liquid-clear">Liquid Clear</button>
+        <button class="demo-btn active" data-glass="liquid-tinted">Liquid Tinted</button>
+      </div>
+      <label class="demo-toggle" style="margin-top:8px">
+        <input type="checkbox" id="darknessToggle">
+        <span>夜间 uDarkness（Tinted 略深）</span>
+      </label>
+    </div>
+
+    <div class="demo-section">
+      <h3>生命状态</h3>
+      <div class="demo-btns" data-group="health">
+        <button class="demo-btn active" data-health="20">满血 20</button>
+        <button class="demo-btn" data-health="6">低血 6</button>
+        <button class="demo-btn" data-health="3">危急 3</button>
+        <button class="demo-btn" data-action="damage">受伤闪烁</button>
+        <button class="demo-btn" data-absorption="8">+吸收 8</button>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <h3>饥饿 / 饱和度</h3>
+      <div class="demo-btns" data-group="hunger">
+        <button class="demo-btn active" data-hunger="20" data-sat="20">满饥饿</button>
+        <button class="demo-btn" data-hunger="10" data-sat="10">半饥饿</button>
+        <button class="demo-btn" data-hunger="4" data-sat="0">饥饿</button>
+        <button class="demo-btn" data-hunger="18" data-sat="16">高饱和</button>
+        <button class="demo-btn" data-hunger="14" data-sat="0">无饱和</button>
+      </div>
+      <div style="margin-top:8px">
+        <label class="demo-toggle">
+          <input type="range" id="exhaustionSlider" min="0" max="4" step="0.25" value="1.75">
+          <span>耗尽 <output id="exhaustionVal">1.75</output> / 4</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <h3>AppleSkin 模式</h3>
+      <label class="demo-toggle">
+        <input type="checkbox" id="appleskinToggle" checked>
+        <span>appleskin-compat 开启（饱和度层 + tooltip）</span>
+      </label>
+    </div>
+
+    <div class="demo-section">
+      <h3>次要行</h3>
+      <div class="demo-btns">
+        <button class="demo-btn" id="armorToggle">护甲 12 点</button>
+        <button class="demo-btn" id="oxygenToggle">水下氧气</button>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <h3>物品栏选中</h3>
+      <div class="demo-btns" id="slotBtns"></div>
+    </div>
+
+    <div class="demo-section">
+      <h3>GUI Scale</h3>
+      <div class="demo-scale">
+        <input type="range" id="scaleSlider" min="0.85" max="1.15" step="0.05" value="1">
+        <output id="scaleVal">1.0×</output>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    const root = document.documentElement;
+    const hudRoot = document.getElementById('hudRoot');
+    const statusPanel = document.getElementById('statusPanel');
+    const hotbarTray = document.getElementById('hotbarTray');
+    const appleskinTooltip = document.getElementById('appleskinTooltip');
+    const healthTrack = document.getElementById('healthTrack');
+    const healthCaption = document.getElementById('healthCaption');
+    const absorptionFill = document.getElementById('absorptionFill');
+    const hungerRow = document.getElementById('hungerRow');
+    const hungerCaption = document.getElementById('hungerCaption');
+    const saturationFill = document.getElementById('saturationFill');
+    const hungerFillEl = document.getElementById('hungerFill');
+    const exhaustionIndicator = document.getElementById('exhaustionIndicator');
+    const secondaryRow = document.getElementById('secondaryRow');
+    const armorPips = document.getElementById('armorPips');
+    const oxygenBar = document.getElementById('oxygenBar');
+    const oxygenFill = document.getElementById('oxygenFill');
+    const hotbarSlots = document.getElementById('hotbarSlots');
+    const slotBtns = document.getElementById('slotBtns');
+
+    const SLOT_DATA = [
+      { icon: 'icon-sword', count: 0, dur: null, cd: 0 },
+      { icon: 'icon-pick', count: 0, dur: 0.72, cd: 0 },
+      { icon: 'icon-food', count: 16, dur: null, cd: 0 },
+      { icon: 'icon-block', count: 64, dur: null, cd: 0 },
+      { icon: 'icon-bow', count: 1, dur: 0.35, cd: 0 },
+      { icon: 'icon-potion', count: 3, dur: null, cd: 0 },
+      { icon: 'icon-torch', count: 32, dur: null, cd: 0 },
+      { icon: 'icon-apple', count: 8, dur: null, cd: 0 },
+      { icon: '', count: 0, dur: null, cd: 0.45 }
+    ];
+
+    let selectedSlot = 0;
+    let armorVisible = false;
+    let oxygenVisible = false;
+    let glassMode = 'liquid-tinted';
+
+    const GLASS_PANELS = [statusPanel, hotbarTray, appleskinTooltip];
+
+    function applyGlassMode(mode) {
+      glassMode = mode;
+      hudRoot.dataset.glassMode = mode;
+
+      document.querySelectorAll('[data-group="glass"] .demo-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.glass === mode);
+      });
+
+      if (mode === 'flat') {
+        GLASS_PANELS.forEach(el => {
+          el.className = el.className
+            .replace(/\bmyiui-liquid-glass\b/g, 'myiui-glass')
+            .replace(/\bmyiui-liquid-glass--(?:clear|tinted)\b/g, '')
+            .trim();
+        });
+      } else {
+        const variant = mode === 'liquid-clear' ? 'clear' : 'tinted';
+        GLASS_PANELS.forEach(el => {
+          el.className = el.className
+            .replace(/\bmyiui-glass\b/g, 'myiui-liquid-glass')
+            .replace(/\bmyiui-liquid-glass--(?:clear|tinted)\b/g, '')
+            .trim();
+          el.classList.add('myiui-liquid-glass--' + variant);
+        });
+      }
+      renderHotbar();
+    }
+
+    function slotGlassClasses() {
+      if (glassMode === 'flat') return 'myiui-glass-compact';
+      const variant = glassMode === 'liquid-clear' ? 'clear' : 'tinted';
+      return 'myiui-liquid-glass myiui-liquid-glass-compact myiui-liquid-glass--' + variant;
+    }
+
+    function pct(val, max) { return (val / max * 100) + '%'; }
+
+    function setHealth(current, max = 20, absorption = 0) {
+      root.style.setProperty('--health-pct', pct(current, max));
+      root.style.setProperty('--health-current', current);
+      root.style.setProperty('--health-max', max);
+      root.style.setProperty('--absorption-pct', pct(absorption, max));
+      healthCaption.textContent = current + ' / ' + max + (absorption ? ' +' + absorption : '');
+      healthTrack.dataset.low = current <= 6 ? 'true' : 'false';
+    }
+
+    function setHunger(food, sat, exhaust) {
+      root.style.setProperty('--hunger-pct', pct(food, 20));
+      root.style.setProperty('--saturation-pct', pct(sat, 20));
+      root.style.setProperty('--exhaustion-pct', pct(exhaust, 4));
+      hungerCaption.textContent = food + ' / 20';
+      hungerRow.dataset.hunger = food;
+      hungerRow.dataset.saturation = sat;
+      hungerRow.dataset.exhaustion = exhaust;
+      document.getElementById('tipHunger').textContent = food + '.0';
+      document.getElementById('tipSaturation').textContent = sat.toFixed(1);
+      document.getElementById('tipExhaustion').textContent = exhaust.toFixed(2);
+      const healEst = Math.min(sat * 0.5 + food * 0.3, 20);
+      document.getElementById('tipHeal').textContent = '+' + healEst.toFixed(1) + ' HP';
+    }
+
+    function triggerDamage() {
+      healthTrack.dataset.damaged = 'true';
+      setTimeout(() => { healthTrack.dataset.damaged = 'false'; }, 400);
+    }
+
+    function renderArmor(count) {
+      armorPips.innerHTML = '';
+      for (let i = 0; i < 10; i++) {
+        const pip = document.createElement('span');
+        pip.className = 'myiui-armor-pip';
+        pip.dataset.filled = i < Math.ceil(count / 2) ? 'true' : 'false';
+        armorPips.appendChild(pip);
+      }
+    }
+
+    function renderHotbar() {
+      hotbarSlots.innerHTML = '';
+      SLOT_DATA.forEach((slot, i) => {
+        const el = document.createElement('div');
+        el.className = 'myiui-hotbar-slot ' + slotGlassClasses();
+        el.dataset.selected = i === selectedSlot ? 'true' : 'false';
+        el.dataset.slot = i;
+
+        if (glassMode !== 'flat') {
+          const noise = document.createElement('span');
+          noise.className = 'myiui-liquid-glass__noise liquid-only';
+          noise.setAttribute('aria-hidden', 'true');
+          el.appendChild(noise);
+        }
+
+        if (slot.icon) {
+          const icon = document.createElement('div');
+          icon.className = 'myiui-slot-icon ' + slot.icon;
+          el.appendChild(icon);
+        }
+        if (slot.count > 1) {
+          const cnt = document.createElement('span');
+          cnt.className = 'myiui-slot-count';
+          cnt.textContent = slot.count;
+          el.appendChild(cnt);
+        }
+        if (slot.dur !== null) {
+          const dur = document.createElement('div');
+          dur.className = 'myiui-slot-durability';
+          const fill = document.createElement('div');
+          fill.className = 'myiui-slot-durability-fill';
+          fill.style.width = (slot.dur * 100) + '%';
+          fill.dataset.low = slot.dur < 0.15 ? 'true' : 'false';
+          dur.appendChild(fill);
+          el.appendChild(dur);
+        }
+        if (slot.cd > 0) {
+          const cd = document.createElement('div');
+          cd.className = 'myiui-slot-cooldown';
+          cd.style.setProperty('--cooldown-pct', (slot.cd * 100) + '%');
+          el.appendChild(cd);
+        }
+        el.addEventListener('click', () => selectSlot(i));
+        hotbarSlots.appendChild(el);
+      });
+    }
+
+    function selectSlot(i) {
+      selectedSlot = i;
+      renderHotbar();
+      slotBtns.querySelectorAll('.demo-btn').forEach((b, j) => {
+        b.classList.toggle('active', j === i);
+      });
+    }
+
+    // 初始化物品栏槽位按钮
+    for (let i = 0; i < 9; i++) {
+      const btn = document.createElement('button');
+      btn.className = 'demo-btn' + (i === 0 ? ' active' : '');
+      btn.textContent = i + 1;
+      btn.addEventListener('click', () => selectSlot(i));
+      slotBtns.appendChild(btn);
+    }
+
+    // 生命按钮
+    document.querySelector('[data-group="health"]').addEventListener('click', e => {
+      const btn = e.target.closest('.demo-btn');
+      if (!btn) return;
+      document.querySelectorAll('[data-group="health"] .demo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (btn.dataset.action === 'damage') { triggerDamage(); return; }
+      const h = parseInt(btn.dataset.health || '20', 10);
+      const abs = parseInt(btn.dataset.absorption || '0', 10);
+      setHealth(h, 20, abs);
+    });
+
+    // 饥饿按钮
+    document.querySelector('[data-group="hunger"]').addEventListener('click', e => {
+      const btn = e.target.closest('.demo-btn');
+      if (!btn) return;
+      document.querySelectorAll('[data-group="hunger"] .demo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const exhaust = parseFloat(document.getElementById('exhaustionSlider').value);
+      setHunger(
+        parseInt(btn.dataset.hunger, 10),
+        parseInt(btn.dataset.sat, 10),
+        exhaust
+      );
+    });
+
+    document.getElementById('exhaustionSlider').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      document.getElementById('exhaustionVal').textContent = v.toFixed(2);
+      const active = document.querySelector('[data-group="hunger"] .demo-btn.active');
+      if (active) {
+        setHunger(parseInt(active.dataset.hunger, 10), parseInt(active.dataset.sat, 10), v);
+      }
+    });
+
+    document.getElementById('appleskinToggle').addEventListener('change', e => {
+      hungerRow.dataset.appleskin = e.target.checked ? 'true' : 'false';
+    });
+
+    document.getElementById('armorToggle').addEventListener('click', function() {
+      armorVisible = !armorVisible;
+      this.classList.toggle('active', armorVisible);
+      secondaryRow.dataset.visible = (armorVisible || oxygenVisible) ? 'true' : 'false';
+      if (armorVisible) renderArmor(12);
+    });
+
+    document.getElementById('oxygenToggle').addEventListener('click', function() {
+      oxygenVisible = !oxygenVisible;
+      this.classList.toggle('active', oxygenVisible);
+      oxygenBar.style.display = oxygenVisible ? 'block' : 'none';
+      secondaryRow.dataset.visible = (armorVisible || oxygenVisible) ? 'true' : 'false';
+      if (oxygenVisible) oxygenFill.style.width = '45%';
+    });
+
+    document.getElementById('scaleSlider').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      root.style.setProperty('--myiui-hud-scale', v);
+      document.getElementById('scaleVal').textContent = v.toFixed(2) + '×';
+    });
+
+    document.getElementById('glassModeBtns').addEventListener('click', e => {
+      const btn = e.target.closest('.demo-btn');
+      if (!btn || !btn.dataset.glass) return;
+      applyGlassMode(btn.dataset.glass);
+    });
+
+    document.getElementById('darknessToggle').addEventListener('change', e => {
+      hudRoot.dataset.darkness = e.target.checked ? 'true' : 'false';
+    });
+
+    // 初始状态
+    applyGlassMode('liquid-tinted');
+    setHealth(20, 20, 0);
+    setHunger(20, 20, 1.75);
+    renderHotbar();
+  </script>
+</body>
+</html>

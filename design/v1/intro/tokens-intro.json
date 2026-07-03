@@ -1,0 +1,82 @@
+{
+  "meta": {
+    "description": "入场动画专用 Token — 可直接生成 IntroTokens.java",
+    "source": ["myui-intro-screen.html :root", "tokens.json", "DESIGN.md"]
+  },
+  "colorsArgb": {
+    "ACCENT": "0xFF5AC8FA",
+    "ACCENT_72": "0xB85AC8FA",
+    "ACCENT_24": "0x3D5AC8FA",
+    "ACCENT_12": "0x1F5AC8FA",
+    "BG_DEEP": "0xFF0A0E14",
+    "BG_OVERLAY": "0x8C080C14",
+    "GLASS_BG": "0x14FFFFFF",
+    "GLASS_BG_STRONG": "0x24FFFFFF",
+    "GLASS_BORDER": "0x38FFFFFF",
+    "GLASS_BORDER_ACCENT": "0x735AC8FA",
+    "FG": "0xFFF5F6F8",
+    "FG_MUTED": "0xFFB8BCC4",
+    "FG_DIM": "0xFF848A94",
+    "SUCCESS": "0xFF30D158",
+    "SUCCESS_BORDER": "0x4D30D158",
+    "BLACK": "0xFF000000",
+    "WHITE_55": "0x8CFFFFFF",
+    "TRACK_STROKE": "0x0FFFFFFF"
+  },
+  "colorsCss": {
+    "accent": "#5AC8FA",
+    "accent-72": "rgba(90, 200, 250, 0.72)",
+    "accent-24": "rgba(90, 200, 250, 0.24)",
+    "accent-12": "rgba(90, 200, 250, 0.12)",
+    "bg-deep": "oklch(12% 0.02 250)",
+    "bg-overlay": "rgba(8, 12, 20, 0.55)",
+    "glass-bg": "rgba(255, 255, 255, 0.08)",
+    "glass-bg-strong": "rgba(255, 255, 255, 0.14)",
+    "glass-border": "rgba(255, 255, 255, 0.22)",
+    "glass-border-accent": "rgba(90, 200, 250, 0.45)",
+    "fg": "oklch(96% 0.005 250)",
+    "fg-muted": "oklch(72% 0.01 250)",
+    "fg-dim": "oklch(52% 0.012 250)",
+    "success": "oklch(68% 0.14 155)"
+  },
+  "dimensions": {
+    "emblemGlass": { "width": 120, "height": 120, "radius": 30, "blur": 28 },
+    "emblemRing1": { "size": 140 },
+    "emblemRing2": { "size": 180 },
+    "wordmarkLine": { "width": 48, "height": 1 },
+    "progressRing": { "size": 60, "radius": 27, "circumference": 169, "strokeWidth": 2.5 },
+    "bootLog": { "maxWidth": 440, "padding": [16, 18], "fontSize": 11 },
+    "progressPanel": { "minWidth": 128, "padding": [18, 22] },
+    "successChip": { "padding": [16, 28], "dotSize": 8 },
+    "letterboxHeightVh": 12,
+    "bootHudInsetPx": 40,
+    "skipHintInsetPx": 28
+  },
+  "timing": {
+    "durationMs": 8000,
+    "skipDebounceMs": 800,
+    "skipExitFadeMs": 480,
+    "skipRedirectDelayMs": 500,
+    "reducedMotionMs": 1000
+  },
+  "copyZh": {
+    "pageTitle": "MyUI — 入场动画",
+    "progressLabel": "加载中",
+    "successChip": "准备就绪",
+    "skipHint": "按任意键或点击跳过",
+    "wordmark": "MyUI",
+    "tagline": "Fabric UI Mod",
+    "bootLog": [
+      "> init fabric-renderer … ok",
+      "> load glass-shader pipeline",
+      "> bind title-screen overlay",
+      "> ready — entering menu"
+    ]
+  },
+  "langKeys": {
+    "intro.loading": "加载中",
+    "intro.ready": "准备就绪",
+    "intro.skip": "按任意键或点击跳过",
+    "intro.tagline": "Fabric UI Mod"
+  }
+}

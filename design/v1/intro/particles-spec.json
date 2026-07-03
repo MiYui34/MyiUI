@@ -1,0 +1,116 @@
+{
+  "meta": {
+    "sourceFile": "myui-intro-screen.html",
+    "sourceLines": "726-942",
+    "description": "Canvas 粒子系统完整规格 — Agent 应原样移植到 IntroParticleEngine"
+  },
+  "constants": {
+    "durationMs": 8000,
+    "burstPhaseEndMs": 3200,
+    "burstPhaseFadeMs": 1400,
+    "globalFadeStartMs": 6800,
+    "globalFadeDurationMs": 1200,
+    "centerGlowEndMs": 5200,
+    "centerGlowMinBurstPhase": 0.1,
+    "rafStopAfterMs": 8500,
+    "maxDpr": 2,
+    "accentRgb": [90, 200, 250],
+    "accentParticleRatio": 0.2,
+    "ambientAccentRatio": 0.12
+  },
+  "counts": {
+    "burst": "min(48, floor(width / 18))",
+    "ambient": "min(35, floor(width / 28))",
+    "bokeh": "min(18, floor(width / 50))"
+  },
+  "types": {
+    "burst": {
+      "spawn": {
+        "origin": "screen-center",
+        "angle": "(2π * index / total) + random(-0.15, 0.15)",
+        "speed": "random(0.3, 1.7)",
+        "radius": "random(0.3, 1.7)",
+        "life": "random(0.5, 1.0)",
+        "maxLife": 1,
+        "accent": "random() > 0.8"
+      },
+      "update": {
+        "speedMultiplier": "burstPhase > 0 ? 1 : 0.25",
+        "trail": "burstPhase > 0 时画 px,py → x,y 线段",
+        "trailColor": "rgba(90,200,250, alpha * 0.25)",
+        "trailWidth": "radius * 0.6",
+        "respawnOnOOB": "burstPhase > 0.15 时 respawn burst"
+      }
+    },
+    "ambient": {
+      "spawn": {
+        "x": "random(0, width)",
+        "y": "random(0, height)",
+        "vx": "random(-0.05, 0.05)",
+        "vy": "random(-0.25, -0.05)",
+        "radius": "random(0.2, 1.2)",
+        "accent": "random() > 0.88"
+      },
+      "update": {
+        "speedMultiplier": 0.25,
+        "lifeDecay": "burstPhase <= 0 时 life -= 0.005"
+      }
+    },
+    "bokeh": {
+      "spawn": {
+        "x": "random(0, width)",
+        "y": "random(0, height)",
+        "radius": "random(1.5, 5.0)",
+        "vx": "random(-0.04, 0.04)",
+        "vy": "random(-0.16, -0.04)",
+        "alpha": "random(0.08, 0.33)",
+        "phase": "random(0, 2π)"
+      },
+      "update": {
+        "phaseIncrement": 0.012,
+        "alphaMod": "alpha * (0.6 + sin(phase) * 0.4) * globalFade",
+        "render": "drawGlowArc only",
+        "wrapY": "y < -20 → y = height + 20, x = random(0, width)"
+      }
+    }
+  },
+  "drawGlowArc": {
+    "gradient": "radial from center",
+    "stops": [
+      { "at": 0, "alpha": "inputAlpha * 0.35" },
+      { "at": 0.4, "alpha": "inputAlpha * 0.08" },
+      { "at": 1, "alpha": 0 }
+    ],
+    "drawRadius": "r * 4",
+    "defaultColor": "rgba(90, 200, 250, …)"
+  },
+  "perFrame": {
+    "order": [
+      "clear canvas",
+      "compute globalFade from elapsed",
+      "compute burstPhase from elapsed",
+      "update + draw bokeh (drawGlowArc)",
+      "update + draw burst/ambient particles",
+      "if elapsed < 5200 && burstPhase > 0.1: center drawGlowArc(cx, cy, 40*breath, 0.12*burstPhase*globalFade)",
+      "breath = 0.5 + sin(elapsed/1000 * 1.2) * 0.15",
+      "schedule next frame if elapsed < DURATION+500 && !redirected"
+    ],
+    "alphaFormula": "(life/maxLife) * globalFade * (0.2 + burstPhase * 0.5)",
+    "alphaSkipThreshold": 0.01,
+    "colors": {
+      "accent": "rgba(90,200,250, alpha * 0.9)",
+      "normal": "rgba(255,255,255, alpha * 0.55)"
+    },
+    "largeParticleGlow": "type=bokeh OR (radius > 1.2 AND burstPhase < 0.5) → drawGlowArc else arc fill"
+  },
+  "resize": {
+    "onResize": ["resizeCanvas", "initParticles"],
+    "dpr": "min(devicePixelRatio, 2)"
+  },
+  "mcMapping": {
+    "canvas": "IntroParticleEngine.render(GuiGraphics g, long elapsedMs)",
+    "clearRect": "不画背景（由下层 Screen 提供）",
+    "drawGlowArc": "预生成 radial 纹理或分段 fill + additive blend",
+    "arc": "GuiGraphics.fill(x-r, y-r, x+r, y+r, color) 或自定义 VertexConsumer"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "singleplayer",
+  "title": "选择世界",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回主菜单", "target": "title-screen.html" },
+    "actions": [
+      { "id": "create", "label": "创建新世界", "variant": "primary" },
+      { "id": "import", "label": "导入世界", "variant": "default" }
+    ]
+  },
+  "sections": [
+    {
+      "id": "worlds",
+      "type": "world_list",
+      "label": "已保存的世界",
+      "items": [
+        { "id": "w1", "name": "生存 · 樱花谷", "mode": "生存", "version": "1.21", "lastPlayed": "昨天", "thumbnail": "grass" },
+        { "id": "w2", "name": "创造 · 红石实验室", "mode": "创造", "version": "1.21", "lastPlayed": "3 天前", "thumbnail": "stone" },
+        { "id": "w3", "name": "极限 · 深暗之域", "mode": "极限", "version": "1.20.4", "lastPlayed": "2 周前", "thumbnail": "deepslate" }
+      ]
+    }
+  ],
+  "components": ["worldCard", "glassButton"]
+}

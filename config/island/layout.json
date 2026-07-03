@@ -1,0 +1,17 @@
+{
+  "default_title": "MyiUI",
+  "show_fps": true,
+  "collapsed_width": 128,
+  "collapsed_height": 32,
+  "expanded_width": 360,
+  "expanded_height": 56,
+  "lyrics_width": 420,
+  "lyrics_height": 72,
+  "top_offset_px": 14,
+  "slots": [
+    { "id": "music", "enabled": true, "icon": "music" },
+    { "id": "quick_menu", "enabled": true, "icon": "menu" },
+    { "id": "system", "enabled": true, "icon": "bell" },
+    { "id": "custom", "enabled": true, "icon": "star" }
+  ]
+}

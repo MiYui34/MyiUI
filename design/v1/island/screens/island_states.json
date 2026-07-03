@@ -1,0 +1,58 @@
+{
+  "states": [
+    {
+      "id": "collapsed",
+      "label": "收起态",
+      "width": 128,
+      "height": 32,
+      "radius": 16,
+      "content": ["fps", "slots"]
+    },
+    {
+      "id": "expanding",
+      "label": "展开中",
+      "width": 360,
+      "height": 56,
+      "radius": 18,
+      "overshoot": 1.06,
+      "content": ["title", "subtitle", "active_slot"]
+    },
+    {
+      "id": "expanded",
+      "label": "通知展开",
+      "width": 360,
+      "height": 56,
+      "radius": 18,
+      "maxWidthVw": 0.42,
+      "content": ["title", "subtitle", "active_slot"]
+    },
+    {
+      "id": "collapsing",
+      "label": "收起中",
+      "width": 128,
+      "height": 32,
+      "radius": 16,
+      "content": []
+    },
+    {
+      "id": "lyrics",
+      "label": "歌词宽条",
+      "width": 420,
+      "height": 72,
+      "radius": 20,
+      "content": ["title", "lyrics_line"],
+      "placeholder": true
+    }
+  ],
+  "slots": [
+    { "index": 0, "id": "music", "icon": "music" },
+    { "index": 1, "id": "quick_menu", "icon": "menu" },
+    { "index": 2, "id": "system", "icon": "bell" },
+    { "index": 3, "id": "custom", "icon": "star" }
+  ],
+  "motion": {
+    "enter": { "overshoot": 1.06, "easing": "spring" },
+    "exit": { "easing": "ease-out" },
+    "linked": ["width", "height", "corner_radius"]
+  }
+}

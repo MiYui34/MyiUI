@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "brand": "MYIUI",
+  "glass": {
+    "blur_radius": 20,
+    "background_tint": [255, 255, 255, 20],
+    "glass_strong_tint": [255, 255, 255, 36],
+    "border_color": [255, 255, 255, 56],
+    "border_accent": [90, 200, 250, 115],
+    "border_width": 2,
+    "corner_radius": 14,
+    "profile_corner_radius": 20,
+    "hover_alpha_mul": 1.08,
+    "active_alpha_mul": 0.95
+  },
+  "colors": {
+    "text_primary": [245, 247, 250, 255],
+    "text_secondary": [178, 184, 196, 255],
+    "text_dim": [128, 134, 148, 255],
+    "accent": [90, 200, 250, 255],
+    "accent_fill": [90, 200, 250, 184],
+    "accent_hover_bg": [90, 200, 250, 31],
+    "danger": [220, 90, 70, 255],
+    "vignette": [0, 0, 0, 120]
+  },
+  "typography": {
+    "font_regular": "Alibaba PuHuiTi",
+    "font_bold": "Alibaba PuHuiTi SemiBold",
+    "brand_size": 22,
+    "nav_size": 19,
+    "profile_name_size": 20,
+    "profile_sub_size": 14,
+    "caption_size": 14,
+    "letter_spacing_nav": 0.02
+  },
+  "spacing": {
+    "nav_gap": 10,
+    "profile_padding": 20,
+    "top_bar_height": 56
+  }
+}

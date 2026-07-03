@@ -1,0 +1,165 @@
+{
+  "$schema": "myiui-hud-screen/v1",
+  "id": "hud_status",
+  "name": "状态栏（生命 + 饥饿 + 次要行）",
+  "anchor": {
+    "reference": "viewport",
+    "horizontal": "left",
+    "vertical": "bottom",
+    "offsetX": "var(--myiui-hud-safe-left)",
+    "offsetY": "calc(var(--myiui-hud-safe-bottom) + 68px)",
+    "notes": "位于物品栏上方，对齐原版 MC 左下 HUD 区域；68px = hotbar 高度 + gap"
+  },
+  "dimensions": {
+    "width": 280,
+    "widthVmin": "14.6vmin",
+    "padding": [10, 12],
+    "rowGap": 8,
+    "barHeight": 10,
+    "barRadius": 5,
+    "labelFontSize": 11,
+    "scaleRange": {
+      "guiScale2": 0.85,
+      "guiScale3": 1.0,
+      "guiScale4": 1.15
+    }
+  },
+  "zIndex": 110,
+  "components": [
+    {
+      "id": "health_row",
+      "type": "status_bar",
+      "label": "生命",
+      "icon": "heart-mini",
+      "track": {
+        "id": "health_track",
+        "class": "myiui-health-track",
+        "height": 10,
+        "fills": [
+          {
+            "id": "health_fill",
+            "class": "myiui-bar-fill--health",
+            "bind": "player.health / player.maxHealth",
+            "cssVar": "--health-pct",
+            "gradient": "myiui-health-fill",
+            "lowThreshold": 6,
+            "lowState": {
+              "dataAttr": "data-low",
+              "gradient": "myiui-health-fill-low",
+              "animation": "myiui-pulse-danger"
+            }
+          },
+          {
+            "id": "absorption_fill",
+            "class": "myiui-bar-fill--absorption",
+            "bind": "player.absorption / player.maxHealth",
+            "cssVar": "--absorption-pct",
+            "color": "#E8C547",
+            "blendMode": "screen",
+            "zIndex": 2
+          }
+        ]
+      },
+      "caption": {
+        "enabled": true,
+        "bind": "{health_current} / {health_max}",
+        "font": "myiui-font-mono",
+        "size": 11
+      },
+      "dataBindings": {
+        "health_current": "player.getHealth()",
+        "health_max": "player.getMaxHealth()",
+        "absorption": "player.getAbsorptionAmount()",
+        "data-low": "health_current <= 6",
+        "data-damaged": "event.onDamage"
+      }
+    },
+    {
+      "id": "hunger_row",
+      "type": "hunger_stack",
+      "label": "饥饿",
+      "icon": "utensil-mini",
+      "appleskinCompat": {
+        "enabled": "config.appleskinCompat",
+        "dataAttr": "data-appleskin",
+        "layers": [
+          {
+            "id": "saturation_fill",
+            "class": "myiui-bar-fill--saturation",
+            "bind": "foodStats.saturationLevel / 20",
+            "cssVar": "--saturation-pct",
+            "dataAttr": "data-saturation",
+            "color": "rgba(232, 197, 71, 0.55)",
+            "independentAnimation": true,
+            "zIndex": 1
+          },
+          {
+            "id": "hunger_fill",
+            "class": "myiui-bar-fill--hunger",
+            "bind": "foodStats.foodLevel / 20",
+            "cssVar": "--hunger-pct",
+            "dataAttr": "data-hunger",
+            "gradient": "myiui-hunger-fill",
+            "zIndex": 2
+          },
+          {
+            "id": "exhaustion_indicator",
+            "class": "myiui-exhaustion-indicator",
+            "bind": "foodStats.exhaustionLevel / 4",
+            "cssVar": "--exhaustion-pct",
+            "dataAttr": "data-exhaustion",
+            "visibleWhen": "appleskinCompat && exhaustion > 0"
+          }
+        ],
+        "tooltip": {
+          "trigger": "hover_food_item",
+          "class": "myiui-appleskin-tooltip",
+          "fields": [
+            { "key": "hunger", "label": "饥饿", "bind": "foodStats.foodLevel", "format": "0.0" },
+            { "key": "saturation", "label": "饱和度", "bind": "foodStats.saturationLevel", "format": "0.0", "color": "gold" },
+            { "key": "exhaustion", "label": "耗尽", "bind": "foodStats.exhaustionLevel", "format": "0.00" },
+            { "key": "healEstimate", "label": "预计恢复", "bind": "appleskin.getEstimatedHealth", "format": "+0.0 HP", "color": "success" }
+          ]
+        }
+      },
+      "caption": {
+        "enabled": true,
+        "bind": "{food_level} / 20",
+        "font": "myiui-font-mono",
+        "size": 11
+      },
+      "dataBindings": {
+        "food_level": "player.getFoodStats().getFoodLevel()",
+        "saturation_level": "player.getFoodStats().getSaturationLevel()",
+        "exhaustion_level": "player.getFoodStats().getExhaustionLevel()"
+      }
+    },
+    {
+      "id": "secondary_row",
+      "type": "collapsible",
+      "visible": "armor > 0 || !player.canBreathe()",
+      "children": [
+        {
+          "id": "armor_pips",
+          "type": "icon_row",
+          "maxIcons": 20,
+          "icon": "shield-mini",
+          "bind": "player.getArmor()"
+        },
+        {
+          "id": "oxygen_mini",
+          "type": "mini_bar",
+          "bind": "player.getAir() / player.getMaxAir()",
+          "visibleWhen": "!player.canBreathe()"
+        }
+      ]
+    }
+  ],
+  "tokens": {
+    "glassBg": "var(--myiui-glass-bg)",
+    "glassBorder": "var(--myiui-glass-border)",
+    "accent": "var(--myiui-accent)",
+    "danger": "var(--myiui-danger)",
+    "success": "var(--myiui-success)"
+  }
+}

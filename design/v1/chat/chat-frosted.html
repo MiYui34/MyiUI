@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyiUI — Frosted Chat Panel</title>
+  <style>
+    :root {
+      /* Glass v2 tokens — map directly to ImGui */
+      --accent: #5AC8FA;
+      --accent-rgb: 90, 200, 250;
+      --glass-bg: rgba(15, 18, 25, 0.72);
+      --glass-border: rgba(90, 200, 250, 0.28);
+      --text-primary: rgba(255, 255, 255, 0.92);
+      --text-body: rgba(255, 255, 255, 0.88);
+      --text-muted: rgba(160, 165, 175, 0.85);
+      --text-dim: rgba(255, 255, 255, 0.35);
+      --gold-accent: #FFB830;
+      --rank-default: rgba(160, 165, 175, 0.85);
+      --rank-gold: #FFB830;
+      --rank-special: #5AC8FA;
+
+      --panel-width: 420px;
+      --panel-min-height: 200px;
+      --panel-max-height: 60vh;
+      --panel-radius: 14px;
+      --panel-padding-x: 16px;
+      --panel-padding-y: 14px;
+      --message-gap: 4px;
+      --blur-amount: 20px;
+      --blur-saturate: 1.3;
+      --glow-opacity: 0.08;
+      --top-highlight-alpha: 0.15;
+
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif;
+      --font-size-body: 13.5px;
+      --font-size-system: 14px;
+      --line-height: 1.6;
+      --font-weight-username: 500;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-body);
+      font-size: var(--font-size-body);
+      line-height: var(--line-height);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .scene {
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(180deg, oklch(72% 0.08 230) 0%, oklch(58% 0.06 220) 38%, oklch(42% 0.04 145) 62%, oklch(35% 0.03 130) 100%);
+    }
+
+    .scene::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 100%, oklch(38% 0.05 130 / 0.6), transparent 70%),
+        repeating-linear-gradient(
+          90deg,
+          oklch(45% 0.04 140 / 0.15) 0px,
+          oklch(45% 0.04 140 / 0.15) 32px,
+          oklch(42% 0.03 135 / 0.12) 32px,
+          oklch(42% 0.03 135 / 0.12) 64px
+        );
+      filter: blur(0.5px);
+    }
+
+    .scene-blocks {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .block {
+      position: absolute;
+      border-radius: 2px;
+      opacity: 0.55;
+      image-rendering: pixelated;
+    }
+
+    .block--grass { background: linear-gradient(180deg, #5a9a4a 0%, #5a9a4a 30%, #8b6914 30%, #8b6914 100%); }
+    .block--stone { background: #7a7a7a; }
+    .block--dirt  { background: #8b6914; }
+    .block--water { background: linear-gradient(135deg, #3a7bd5, #2a5a9a); opacity: 0.4; }
+
+    .scene-vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, oklch(15% 0.02 240 / 0.35) 100%);
+      pointer-events: none;
+    }
+
+    .chat-panel {
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      width: var(--panel-width);
+      min-height: var(--panel-min-height);
+      max-height: var(--panel-max-height);
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--panel-radius);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--blur-amount)) saturate(var(--blur-saturate));
+      -webkit-backdrop-filter: blur(var(--blur-amount)) saturate(var(--blur-saturate));
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.28),
+        0 2px 8px rgba(0, 0, 0, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, var(--top-highlight-alpha));
+      overflow: hidden;
+      animation: panel-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .chat-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: radial-gradient(
+        ellipse 120% 80% at -10% 110%,
+        rgba(var(--accent-rgb), var(--glow-opacity)),
+        transparent 55%
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .chat-panel::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 12px;
+      right: 12px;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, var(--top-highlight-alpha)) 20%,
+        rgba(255, 255, 255, var(--top-highlight-alpha)) 80%,
+        transparent
+      );
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    @keyframes panel-enter {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-messages {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--panel-padding-y) var(--panel-padding-x);
+      display: flex;
+      flex-direction: column;
+      gap: var(--message-gap);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(var(--accent-rgb), 0.25) transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: rgba(var(--accent-rgb), 0.22);
+      border-radius: 4px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb:hover {
+      background: rgba(var(--accent-rgb), 0.35);
+    }
+
+    .msg {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0;
+      font-size: var(--font-size-body);
+      line-height: var(--line-height);
+      word-break: break-word;
+    }
+
+    .msg--system {
+      font-size: var(--font-size-system);
+      color: var(--rank-special);
+      margin-bottom: 2px;
+    }
+
+    .msg--system .msg-rank {
+      color: var(--rank-special);
+      background: rgba(var(--accent-rgb), 0.12);
+      border: 1px solid rgba(var(--accent-rgb), 0.22);
+    }
+
+    .msg-rank {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 5px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+
+    .msg-rank--default {
+      color: var(--rank-default);
+      background: rgba(160, 165, 175, 0.08);
+    }
+
+    .msg-rank--gold {
+      color: var(--rank-gold);
+      background: rgba(255, 184, 48, 0.1);
+    }
+
+    .msg-rank--special {
+      color: var(--rank-special);
+      background: rgba(var(--accent-rgb), 0.1);
+    }
+
+    .msg-sep,
+    .msg-arrow {
+      color: var(--text-dim);
+      padding: 0 5px;
+      user-select: none;
+    }
+
+    .msg-user {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-username);
+    }
+
+    .msg-text {
+      color: var(--text-body);
+    }
+
+    .chat-input-wrap {
+      position: relative;
+      z-index: 1;
+      padding: 0 var(--panel-padding-x) var(--panel-padding-y);
+    }
+
+    .chat-input {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(var(--accent-rgb), 0.18);
+      background: rgba(15, 18, 25, 0.55);
+      backdrop-filter: blur(12px) saturate(1.2);
+      -webkit-backdrop-filter: blur(12px) saturate(1.2);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: var(--font-size-body);
+      line-height: 1.4;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .chat-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .chat-input:focus {
+      border-color: rgba(var(--accent-rgb), 0.42);
+      box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+    }
+
+    .hud-label {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene-blocks">
+      <div class="block block--grass" style="width:64px;height:64px;left:18%;bottom:22%;"></div>
+      <div class="block block--grass" style="width:64px;height:64px;left:calc(18% + 64px);bottom:22%;"></div>
+      <div class="block block--dirt"  style="width:64px;height:64px;left:18%;bottom:calc(22% - 64px);"></div>
+      <div class="block block--stone" style="width:48px;height:48px;left:62%;bottom:28%;"></div>
+      <div class="block block--stone" style="width:48px;height:48px;left:calc(62% + 48px);bottom:28%;"></div>
+      <div class="block block--water" style="width:96px;height:32px;left:40%;bottom:18%;border-radius:4px;"></div>
+      <div class="block block--grass" style="width:64px;height:64px;left:75%;bottom:35%;"></div>
+    </div>
+    <div class="scene-vignette"></div>
+  </div>
+
+  <p class="hud-label">MyiUI · Glass v2 Chat</p>
+
+  <aside class="chat-panel" role="log" aria-label="游戏聊天">
+    <div class="chat-messages">
+      <div class="msg">
+        <span class="msg-user">Steve_042</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">有人一起下矿吗？</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">LunarFox</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">我在 -384 找到了钻石层，快来</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">BlockMaster</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">gg，刚才那只 creeper 差点把我送走</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">Admin</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">服务器将在 10 分钟后维护，请保存进度</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">PixelNova</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">新出的毛玻璃 UI 看起来不错</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">萌新_Kira</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">请问怎么打开 MyiUI 面板？</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">CraftKing</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">按 Right Shift，然后在设置里找 Chat</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">ModBot</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">欢迎加入服务器！输入 /help 查看指令</span>
+      </div>
+
+      <div class="msg">
+        <span class="msg-user">EchoBlade</span>
+        <span class="msg-arrow">&gt;</span>
+        <span class="msg-text">今晚建个玻璃穹顶吧，正好配这个 UI 风格</span>
+      </div>
+    </div>
+
+    <div class="chat-input-wrap">
+      <input
+        class="chat-input"
+        type="text"
+        placeholder="输入消息… (Enter 发送)"
+        aria-label="聊天输入"
+        disabled
+      >
+    </div>
+  </aside>
+</body>
+</html>

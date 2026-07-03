@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 选择世界</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport">
+    <div id="canvas">
+      <div class="panorama" aria-hidden="true"></div>
+      <div class="overlay" aria-hidden="true"></div>
+      <div class="screen">
+        <header class="top-bar">
+          <div class="logo"><div class="logo-mark">M</div>MyUI<span class="version">单人游戏</span></div>
+        </header>
+        <main class="main-layout">
+          <article class="profile-card">
+            <div class="profile-header">
+              <div class="avatar">SB</div>
+              <div class="profile-info"><h2>Steve_Builder</h2><div class="uuid">a3f2…8c1d</div></div>
+            </div>
+            <div class="status-row"><span class="status-dot"></span><span class="status-text">选择世界</span></div>
+          </article>
+          <section class="content-panel">
+            <header class="panel-header">
+              <a href="title-screen.html" class="back-btn" data-nav="title-screen.html">
+                <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M38 14L22 32l16 18"/></svg>
+                返回
+              </a>
+              <h1>选择世界</h1>
+              <div class="panel-actions">
+                <button type="button" class="glass-btn glass-btn--sm">导入世界</button>
+                <button type="button" class="glass-btn glass-btn--sm glass-btn--primary">创建新世界</button>
+              </div>
+            </header>
+            <div class="panel-body">
+              <div class="section-label">已保存的世界</div>
+              <div class="world-list">
+                <div class="world-card selected">
+                  <div class="world-thumb world-thumb--grass"></div>
+                  <div class="world-info"><h3>生存 · 樱花谷</h3><p>1.21 · 昨天</p></div>
+                  <span class="badge badge--survival">生存</span>
+                </div>
+                <div class="world-card">
+                  <div class="world-thumb world-thumb--stone"></div>
+                  <div class="world-info"><h3>创造 · 红石实验室</h3><p>1.21 · 3 天前</p></div>
+                  <span class="badge badge--creative">创造</span>
+                </div>
+                <div class="world-card">
+                  <div class="world-thumb world-thumb--deepslate"></div>
+                  <div class="world-info"><h3>极限 · 深暗之域</h3><p>1.20.4 · 2 周前</p></div>
+                  <span class="badge badge--hardcore">极限</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

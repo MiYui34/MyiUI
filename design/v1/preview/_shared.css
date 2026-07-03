@@ -1,0 +1,28 @@
+/* Shared MyiUI v1 preview styles — aligned with index.html */
+:root {
+  --glass-blur: 18px;
+  --glass-bg: rgba(12, 14, 22, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.15);
+  --radius: 14px;
+  --accent: #5ac8fa;
+  --text: #f5f7fa;
+  --text-dim: rgba(178, 184, 196, 0.86);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Alibaba PuHuiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  min-height: 100vh; color: var(--text);
+  background: #12141c url('../assets/default_bg.svg') center/cover no-repeat;
+}
+.vignette { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.45) 100%); pointer-events: none; }
+.content-panel {
+  position: fixed; right: 8%; top: 50%; transform: translateY(-50%);
+  width: min(720px, 52vw); max-height: 80vh; overflow: auto;
+  padding: 24px; background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+}
+.content-panel h1 { font-size: 20px; margin-bottom: 4px; }
+.content-panel .sub { color: var(--text-dim); font-size: 14px; margin-bottom: 20px; }
+.row { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; }
+.btn { padding: 10px 18px; border-radius: var(--radius); border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text); cursor: pointer; }
+.btn.primary { background: rgba(90,200,250,0.72); border-color: rgba(90,200,250,0.45); }

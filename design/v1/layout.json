@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "reference_resolution": [1920, 1080],
+  "brand_label": "MyiUI",
+  "version_label": "Fabric 1.21",
+  "logo_bar": { "anchor": "top_left", "x": 0.025, "y": 0.03 },
+  "manager": { "anchor": "top_right", "x": 0.975, "y": 0.03, "label": "UI管理器" },
+  "main_cluster": {
+    "center_y": 0.5,
+    "gap": 48,
+    "profile_w": 280,
+    "menu_w": 320
+  },
+  "profile_card": { "anchor": "cluster_left", "x": 0.08, "y": 0.5, "w": 0.20, "h": 0.15 },
+  "nav_stack": {
+    "anchor": "cluster_right",
+    "x": 0.92,
+    "y": 0.5,
+    "gap": 10,
+    "button_w": 320,
+    "button_h": 44,
+    "items": [
+      { "id": "single", "label": "单人游戏", "pipe": "OPEN_SINGLEPLAYER", "style": "primary" },
+      { "id": "multi", "label": "多人游戏", "pipe": "OPEN_MULTIPLAYER", "style": "default" },
+      { "id": "options", "label": "选项", "pipe": "OPEN_OPTIONS", "style": "default" },
+      { "id": "quit", "label": "退出游戏", "pipe": "QUIT", "style": "danger" }
+    ]
+  }
+}

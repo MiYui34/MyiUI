@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "title": "MyiUI Injector",
+  "subtitle": "Attach Agent · Inject Overlay DLL",
+  "regions": {
+    "header": {
+      "height": 72,
+      "logo_mark": { "size": 36, "radius": 10 },
+      "brand_text": "MYIUI",
+      "tagline": "Injector"
+    },
+    "process_panel": {
+      "title": "Java 进程",
+      "hint": "启动 Minecraft 并停在主菜单，然后刷新列表",
+      "columns": [
+        { "id": "name", "label": "进程", "width_pct": 18 },
+        { "id": "pid", "label": "PID", "width_pct": 14 },
+        { "id": "memory", "label": "内存", "width_pct": 16 },
+        { "id": "hint", "label": "识别", "width_pct": 52 }
+      ],
+      "toolbar": ["refresh", "auto_refresh_toggle"],
+      "flex_grow": 1
+    },
+    "actions": {
+      "primary": { "id": "inject", "label": "注入 MyiUI", "width": "fill" },
+      "secondary": [
+        { "id": "open_folder", "label": "打开日志目录" }
+      ]
+    },
+    "status_log": {
+      "title": "状态",
+      "min_lines": 6,
+      "flex_grow": 0.45
+    },
+    "footer": {
+      "text": "需管理员权限时请以管理员运行 · 每次重启 MC 需重新注入"
+    }
+  }
+}

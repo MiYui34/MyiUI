@@ -1,0 +1,33 @@
+{
+  "id": "options_video",
+  "title": "视频设置",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" }
+  },
+  "sections": [
+    {
+      "id": "display",
+      "label": "显示",
+      "rows": [
+        { "id": "fullscreen", "type": "toggle", "label": "全屏", "desc": "以全屏模式运行游戏", "default": true },
+        { "id": "gui_scale", "type": "slider", "label": "界面缩放", "min": 1, "max": 4, "step": 1, "default": 2, "unit": "×" },
+        { "id": "fov", "type": "slider", "label": "视场角", "min": 30, "max": 110, "step": 1, "default": 70, "unit": "°" },
+        { "id": "brightness", "type": "slider", "label": "亮度", "min": 0, "max": 100, "step": 1, "default": 50, "unit": "%" }
+      ]
+    },
+    {
+      "id": "quality",
+      "label": "画质",
+      "rows": [
+        { "id": "graphics", "type": "enum", "label": "图形", "options": ["快速", "fancy", "极佳"], "default": "fancy" },
+        { "id": "render_distance", "type": "enum", "label": "渲染距离", "options": ["4", "8", "12", "16", "24", "32"], "default": "12" },
+        { "id": "vsync", "type": "toggle", "label": "垂直同步", "default": true },
+        { "id": "max_fps", "type": "enum", "label": "最大帧率", "options": ["30", "60", "120", "144", "无限制"], "default": "120" }
+      ]
+    }
+  ],
+  "components": ["settingRow"]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "options_sound",
+  "title": "音频设置",
+  "parent": "options_hub",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回选项", "target": "options-hub.html" }
+  },
+  "sections": [
+    {
+      "id": "master",
+      "label": "主音量",
+      "rows": [
+        { "id": "master_volume", "type": "slider", "label": "主音量", "min": 0, "max": 100, "step": 1, "default": 80, "unit": "%" },
+        { "id": "music_volume", "type": "slider", "label": "音乐", "min": 0, "max": 100, "step": 1, "default": 60, "unit": "%" },
+        { "id": "weather_volume", "type": "slider", "label": "天气", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "game",
+      "label": "游戏音效",
+      "rows": [
+        { "id": "block_volume", "type": "slider", "label": "方块", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" },
+        { "id": "hostile_volume", "type": "slider", "label": "敌对生物", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" },
+        { "id": "neutral_volume", "type": "slider", "label": "友好生物", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" },
+        { "id": "player_volume", "type": "slider", "label": "玩家", "min": 0, "max": 100, "step": 1, "default": 100, "unit": "%" }
+      ]
+    },
+    {
+      "id": "devices",
+      "label": "设备",
+      "rows": [
+        { "id": "output_device", "type": "enum", "label": "输出设备", "options": ["系统默认", "扬声器", "耳机"], "default": "系统默认" },
+        { "id": "subtitles", "type": "toggle", "label": "显示字幕", "desc": "在屏幕底部显示音效字幕", "default": false }
+      ]
+    }
+  ],
+  "components": ["settingRow"]
+}

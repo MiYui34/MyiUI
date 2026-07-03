@@ -1,0 +1,8 @@
+{
+  "base_url": "http://localhost:3000",
+  "quality": "exhigh",
+  "enable_flac": false,
+  "request_timeout_ms": 8000,
+  "lyrics_sync": true,
+  "volume": 80
+}

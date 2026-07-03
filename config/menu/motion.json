@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "hover": {
+    "duration_ms": 180,
+    "easing": "spring",
+    "scale": 1.05,
+    "brightness_mul": 1.08,
+    "blur_delta": 2
+  },
+  "press": {
+    "duration_ms": 120,
+    "easing": "ease_out",
+    "scale": 0.97
+  },
+  "panel_fade": {
+    "duration_ms": 320,
+    "easing": "spring_gentle"
+  }
+}

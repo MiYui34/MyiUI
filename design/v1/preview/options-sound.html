@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 音频设置</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport"><div id="canvas">
+    <div class="panorama" aria-hidden="true"></div><div class="overlay" aria-hidden="true"></div>
+    <div class="screen">
+      <header class="top-bar"><div class="logo"><div class="logo-mark">M</div>MyUI<span class="version">音频设置</span></div></header>
+      <main class="main-layout">
+        <article class="profile-card">
+          <div class="profile-header"><div class="avatar">SB</div><div class="profile-info"><h2>Steve_Builder</h2><div class="uuid">a3f2…8c1d</div></div></div>
+          <div class="status-row"><span class="status-dot"></span><span class="status-text">音频设置</span></div>
+        </article>
+        <section class="content-panel">
+          <header class="panel-header">
+            <a href="options-hub.html" class="back-btn" data-nav="options-hub.html"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M38 14L22 32l16 18"/></svg>返回</a>
+            <h1>音频设置</h1>
+          </header>
+          <div class="panel-body">
+            <div class="section-label">主音量</div>
+            <div class="setting-row"><div><label>主音量</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="80" data-unit="%"><div class="slider-value">80%</div></div></div>
+            <div class="setting-row"><div><label>音乐</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="60" data-unit="%"><div class="slider-value">60%</div></div></div>
+            <div class="setting-row"><div><label>天气</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="section-label">游戏音效</div>
+            <div class="setting-row"><div><label>方块</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>敌对生物</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>友好生物</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>玩家</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="section-label">设备</div>
+            <div class="setting-row"><div><label>输出设备</label></div><div class="enum-row"><button type="button" class="enum-chip selected">系统默认</button><button type="button" class="enum-chip">扬声器</button><button type="button" class="enum-chip">耳机</button></div></div>
+            <div class="setting-row"><div><label>显示字幕</label><div class="desc">在屏幕底部显示音效字幕</div></div><label class="toggle"><input type="checkbox"><span class="toggle-track"></span></label></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div></div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

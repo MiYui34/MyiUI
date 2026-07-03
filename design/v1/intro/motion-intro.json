@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "name": "MyUI Menu Motion",
+    "version": "1.0.0"
+  },
+  "page_transition": {
+    "type": "crossfade",
+    "duration_ms": 180,
+    "slide_px": 0,
+    "easing": "ease"
+  },
+  "enter": {
+    "overlay": { "duration_ms": 480, "easing": "ease" },
+    "content": { "duration_ms": 480, "easing": "cubic-bezier(0.22, 1.2, 0.36, 1)", "opacity_from": 0, "translate_y_px": 0 }
+  },
+  "hover": {
+    "scale": 1.05,
+    "duration_ms": 180
+  },
+  "active": {
+    "scale": 0.97,
+    "duration_ms": 120
+  },
+  "reduced_motion": {
+    "page_transition": { "duration_ms": 0, "slide_px": 0 },
+    "disable_scale": true
+  }
+}

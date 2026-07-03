@@ -1,0 +1,26 @@
+{
+  "id": "multiplayer",
+  "title": "多人游戏",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回主菜单", "target": "title-screen.html" },
+    "actions": [
+      { "id": "direct", "label": "直接连接", "variant": "primary" },
+      { "id": "add", "label": "添加服务器", "variant": "default" }
+    ]
+  },
+  "sections": [
+    {
+      "id": "servers",
+      "type": "server_list",
+      "label": "服务器列表",
+      "items": [
+        { "id": "s1", "name": "Hypixel", "address": "mc.hypixel.net", "players": "42,318 / 200,000", "ping": 86, "online": true },
+        { "id": "s2", "name": "局域网 · Steve的世界", "address": "192.168.1.42:25565", "players": "2 / 8", "ping": 12, "online": true },
+        { "id": "s3", "name": "Fabric 测试服", "address": "fabric.example.com", "players": "—", "ping": null, "online": false }
+      ]
+    }
+  ],
+  "components": ["serverCard", "glassButton"]
+}

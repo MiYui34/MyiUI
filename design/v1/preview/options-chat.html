@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyUI — 聊天</title>
+  <link rel="stylesheet" href="css/menu-system.css">
+</head>
+<body>
+  <div id="viewport"><div id="canvas">
+    <div class="panorama" aria-hidden="true"></div><div class="overlay" aria-hidden="true"></div>
+    <div class="screen">
+      <header class="top-bar"><div class="logo"><div class="logo-mark">M</div>MyUI<span class="version">聊天</span></div></header>
+      <main class="main-layout">
+        <article class="profile-card">
+          <div class="profile-header"><div class="avatar">SB</div><div class="profile-info"><h2>Steve_Builder</h2><div class="uuid">a3f2…8c1d</div></div></div>
+          <div class="status-row"><span class="status-dot"></span><span class="status-text">聊天设置</span></div>
+        </article>
+        <section class="content-panel">
+          <header class="panel-header">
+            <a href="options-hub.html" class="back-btn" data-nav="options-hub.html"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2"><path d="M38 14L22 32l16 18"/></svg>返回</a>
+            <h1>聊天</h1>
+          </header>
+          <div class="panel-body">
+            <div class="section-label">显示</div>
+            <div class="setting-row"><div><label>显示聊天</label></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="setting-row"><div><label>聊天不透明度</label></div><div class="slider-wrap"><input type="range" min="0" max="100" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>聊天文字大小</label></div><div class="slider-wrap"><input type="range" min="50" max="200" step="10" value="100" data-unit="%"><div class="slider-value">100%</div></div></div>
+            <div class="setting-row"><div><label>聊天宽度</label></div><div class="slider-wrap"><input type="range" min="200" max="800" step="20" value="320" data-unit="px"><div class="slider-value">320px</div></div></div>
+            <div class="section-label">行为</div>
+            <div class="setting-row"><div><label>聊天颜色</label><div class="desc">允许玩家在聊天中使用颜色代码</div></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="setting-row"><div><label>可点击链接</label></div><label class="toggle"><input type="checkbox" checked><span class="toggle-track"></span></label></div>
+            <div class="setting-row"><div><label>旁白朗读聊天</label></div><div class="enum-row"><button type="button" class="enum-chip selected">关闭</button><button type="button" class="enum-chip">系统</button><button type="button" class="enum-chip">全部</button></div></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div></div>
+  <script src="js/menu-system.js"></script>
+</body>
+</html>

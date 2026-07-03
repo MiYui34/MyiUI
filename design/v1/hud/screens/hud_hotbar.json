@@ -1,0 +1,101 @@
+{
+  "$schema": "myiui-hud-screen/v1",
+  "id": "hud_hotbar",
+  "name": "物品栏 Hotbar",
+  "anchor": {
+    "reference": "viewport",
+    "horizontal": "center",
+    "vertical": "bottom",
+    "offsetX": "50%",
+    "offsetY": "var(--myiui-hud-safe-bottom)",
+    "transform": "translateX(-50%)",
+    "notes": "屏幕底部居中，距底 12–20px（默认 16px）"
+  },
+  "dimensions": {
+    "slotSize": 48,
+    "slotSizeVmin": "2.5vmin",
+    "slotGap": 4,
+    "trayPadding": [6, 10],
+    "trayRadius": 14,
+    "offhandHintSize": 36,
+    "selectedIndicator": {
+      "type": "underline_pill",
+      "width": 20,
+      "height": 3,
+      "offsetBottom": -5,
+      "color": "var(--myiui-accent)",
+      "glow": "0 0 8px rgba(90, 200, 250, 0.6)"
+    },
+    "scaleRange": {
+      "guiScale2": { "slotSize": 40, "gap": 3 },
+      "guiScale3": { "slotSize": 48, "gap": 4 },
+      "guiScale4": { "slotSize": 56, "gap": 5 }
+    }
+  },
+  "zIndex": 120,
+  "components": [
+    {
+      "id": "hotbar_tray",
+      "type": "glass_panel",
+      "class": "myiui-hotbar-tray myiui-glass",
+      "children": [
+        {
+          "id": "hotbar_slots",
+          "type": "slot_grid",
+          "count": 9,
+          "bind": "player.inventory.selectedSlot",
+          "slotClass": "myiui-hotbar-slot",
+          "selectedAttr": "data-selected",
+          "features": {
+            "itemIcon": {
+              "class": "myiui-slot-icon",
+              "bind": "slot.getStack().getItem()"
+            },
+            "stackCount": {
+              "class": "myiui-slot-count",
+              "bind": "slot.getStack().getCount()",
+              "visibleWhen": "count > 1"
+            },
+            "durability": {
+              "class": "myiui-slot-durability",
+              "fillClass": "myiui-slot-durability-fill",
+              "bind": "stack.getDamage() / stack.getMaxDamage()",
+              "height": 2,
+              "position": "bottom",
+              "lowThreshold": 0.15,
+              "lowColor": "var(--myiui-danger)"
+            },
+            "cooldown": {
+              "class": "myiui-slot-cooldown",
+              "bind": "client.getItemCooldownManager().getCooldownProgress(item, tickDelta)",
+              "cssVar": "--cooldown-pct",
+              "type": "conic_gradient"
+            }
+          }
+        },
+        {
+          "id": "offhand_hint",
+          "type": "offhand_indicator",
+          "class": "myiui-offhand-hint",
+          "label": "副",
+          "bind": "player.getOffHandStack()",
+          "optional": true
+        }
+      ]
+    }
+  ],
+  "interaction": {
+    "slotSelect": "player.inventory.selectedSlot = index",
+    "scrollWheel": "cycle selectedSlot 0–8",
+    "numberKeys": "1–9 map to slots 0–8"
+  },
+  "tokens": {
+    "glassBg": "var(--myiui-glass-bg)",
+    "glassBorder": "var(--myiui-glass-border)",
+    "accent": "var(--myiui-accent)",
+    "slotBg": "rgba(255, 255, 255, 0.06)",
+    "slotBorder": "rgba(255, 255, 255, 0.12)",
+    "slotSelectedBorder": "var(--myiui-accent)",
+    "slotSelectedGlow": "0 0 12px rgba(90, 200, 250, 0.25)"
+  }
+}

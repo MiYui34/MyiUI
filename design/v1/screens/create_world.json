@@ -1,0 +1,25 @@
+{
+  "id": "create_world",
+  "title": "创建新世界",
+  "layout": "profile_left_content_right",
+  "contentPanelWidth": 720,
+  "navigation": {
+    "back": { "label": "返回世界列表", "target": "singleplayer" }
+  },
+  "sections": [
+    {
+      "id": "basics",
+      "label": "基本信息",
+      "rows": [
+        { "id": "world_name", "type": "text", "label": "世界名称", "default": "新世界", "placeholder": "输入世界名称" },
+        { "id": "game_mode", "type": "enum", "label": "游戏模式", "options": ["生存", "创造", "极限"], "default": "生存" },
+        { "id": "seed", "type": "text", "label": "世界种子", "default": "", "placeholder": "留空则随机生成" }
+      ]
+    }
+  ],
+  "actions": [
+    { "id": "cancel", "label": "取消", "variant": "default" },
+    { "id": "create", "label": "创建世界", "variant": "primary" }
+  ],
+  "components": ["formField", "glassButton"]
+}
