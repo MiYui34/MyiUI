@@ -149,6 +149,37 @@ public final class MusicPlayer {
 
     // ── 状态查询 ──
 
+    public static final int WAVEFORM_BINS = 32;
+    private static final float[] waveform = new float[WAVEFORM_BINS];
+    private static int waveformWrite = 0;
+
+    public static float[] copyWaveform() {
+        float[] out = new float[WAVEFORM_BINS];
+        System.arraycopy(waveform, 0, out, 0, WAVEFORM_BINS);
+        return out;
+    }
+
+    private static void pushWaveformRms(float rms) {
+        float v = Math.max(0f, Math.min(1f, rms));
+        waveform[waveformWrite % WAVEFORM_BINS] = v;
+        waveformWrite++;
+        for (int i = 0; i < WAVEFORM_BINS; i++) {
+            waveform[i] *= 0.92f;
+        }
+    }
+
+    private static float pcmRms(byte[] pcm) {
+        if (pcm == null || pcm.length < 2) return 0f;
+        long sum = 0;
+        int count = pcm.length / 2;
+        for (int i = 0; i + 1 < pcm.length; i += 2) {
+            short s = (short) ((pcm[i + 1] << 8) | (pcm[i] & 0xFF));
+            sum += (long) s * s;
+        }
+        if (count <= 0) return 0f;
+        return (float) Math.sqrt(sum / (double) count) / 32768f;
+    }
+
     public static Song currentSong() { return currentSong.get(); }
     public static List<Song> queue() { return Collections.unmodifiableList(queue); }
     public static int currentIndex() { return currentIndex; }
@@ -246,6 +277,7 @@ public final class MusicPlayer {
                 byte[] pcm = frameToPcm16(frame, channels);
                 if (pcm != null && pcm.length > 0) {
                     line.write(pcm, 0, pcm.length);
+                    pushWaveformRms(pcmRms(pcm));
                 }
                 positionMs = grabber.getTimestamp() / 1000;  // μs → ms
                 if (durationMs <= 0 && grabber.getLengthInTime() > 0) {

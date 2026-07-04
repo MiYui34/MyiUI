@@ -30,4 +30,7 @@ CoverTexture CoverFromBase64Png(const std::string& b64);
 // 释放所有缓存的纹理（关闭时调用）。
 void CoverShutdown();
 
+// Material You 取色：返回缓存 RGBA 像素（只读，渲染线程调用）。
+const uint8_t* CoverLoaderSampleRgba(const char* url, int& outW, int& outH);
+
 }  // namespace myiui::ui::music

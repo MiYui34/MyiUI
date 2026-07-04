@@ -3,6 +3,7 @@
 #include "bridge/ui_state_types.h"
 #include "ui/clickgui/clickgui.h"
 #include "ui/fonts.h"
+#include "ui/hud/now_playing.h"
 #include "ui/island/island_tokens.h"
 #include "spring_animator.h" // 引入弹簧动画
 
@@ -34,6 +35,8 @@ float g_idleW = 200.f;
 bool g_initialized = false;
 
 uint16_t g_lastSeq = 0;
+bool g_lyricsExpanded = false;
+char g_idleTitleBuf[256]{};
 
 struct TabLayoutCache {
     uint16_t tabSeq = 0;
@@ -85,6 +88,44 @@ float CalculateIdleWidth(ImFont* fP, ImFont* fS, float sizeP, float sizeS, const
     return w;
 }
 
+const char* BuildIdleTitle(const myiui::shared::IslandState& island) {
+    if (island.title[0] && island.lyrics_line[0]) {
+        std::snprintf(g_idleTitleBuf, sizeof(g_idleTitleBuf), "%s • %s", island.title, island.lyrics_line);
+        return g_idleTitleBuf;
+    }
+    if (island.title[0]) {
+        return island.title;
+    }
+    if (myiui::ui::clickgui::ShowFps() && island.fps > 0) {
+        std::snprintf(g_idleTitleBuf, sizeof(g_idleTitleBuf), "%d FPS", island.fps);
+        return g_idleTitleBuf;
+    }
+    return "Ready";
+}
+
+void RenderLyricsExpanded(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS,
+                          const myiui::shared::IslandState& island,
+                          const myiui::shared::MusicHudState& music,
+                          float x, float y, float w, float h, float alpha,
+                          const ThemeConfig& theme) {
+    const float tx = x + S(42.f);
+    DrawOutlinedText(dl, fP, sizeP, ImVec2(tx, y + S(11.f)),
+                     IM_COL32(255, 255, 255, static_cast<int>(255 * alpha)),
+                     island.title[0] ? island.title : "正在播放", alpha);
+
+    const char* lyric = island.lyrics_line[0] ? island.lyrics_line : island.subtitle;
+    DrawOutlinedText(dl, fS, sizeS, ImVec2(tx, y + S(28.f)),
+                     IM_COL32(170, 170, 170, static_cast<int>(255 * alpha)),
+                     lyric[0] ? lyric : "暂无歌词", alpha);
+
+    if (music.valid && music.playing) {
+        const float waveY = y + h - S(18.f);
+        const float waveH = S(10.f);
+        myiui::ui::hud::RenderMiniWaveform(dl, ImVec2(tx, waveY), ImVec2(x + w - S(12.f), waveY + waveH),
+                                           music.waveform, 32, theme.accent, alpha);
+    }
+}
+
 void RenderIdle(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS,
                 const myiui::shared::IslandState& island,
                 float x, float y, float w, float h, float alpha,
@@ -107,7 +148,7 @@ void RenderIdle(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS
                      white, "  •  ", alpha);
     curX += TextW(fS, sizeS, "  •  ");
 
-    const char* title = (!myiui::ui::clickgui::ShowFps() || !island.title[0]) ? "Ready" : island.title;
+    const char* title = BuildIdleTitle(island);
     DrawOutlinedText(dl, fS, sizeS, ImVec2(curX, cy - FontCapH(fS, sizeS)),
                      gray, title, alpha);
 }
@@ -288,6 +329,9 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     const bool hasTab = myiui::bridge::NativeState::Instance().ReadTabList(tab);
     const bool tabActive = hasTab && tab.tab_visible != 0;
 
+    myiui::shared::MusicHudState music{};
+    myiui::bridge::NativeState::Instance().ReadMusicHud(music);
+
     if (!hasIsland && !tabActive) {
         return;
     }
@@ -329,9 +373,16 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         g_springIntro.SetTarget(1.f);
     }
 
+    const bool isMusicMode = island.active_slot == 0 && island.title[0];
+    const bool lyricsMode = island.mode == static_cast<uint8_t>(myiui::shared::IslandMode::Lyrics);
+    if (!isMusicMode) {
+        g_lyricsExpanded = false;
+    }
+
     const bool shouldExpandNotify = !tabActive && island.notify_count > 0;
     const bool shouldExpandTab = tabActive;
-    const bool shouldExpand = shouldExpandTab || shouldExpandNotify;
+    const bool shouldExpandLyrics = isMusicMode && lyricsMode && g_lyricsExpanded;
+    const bool shouldExpand = shouldExpandTab || shouldExpandNotify || shouldExpandLyrics;
     g_springExpand.SetTarget(shouldExpand ? 1.f : 0.f);
     g_springContent.SetTarget(shouldExpand ? 1.f : 0.f);
 
@@ -350,7 +401,7 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     const float expandedH = S(kIslandExpandedH);
     const float radius = S(kIslandRadius);
 
-    const char* idleTitle = (!myiui::ui::clickgui::ShowFps() || !island.title[0]) ? "Ready" : island.title;
+    const char* idleTitle = BuildIdleTitle(island);
     g_idleW = CalculateIdleWidth(fP, fS, sizeP, sizeS, idleTitle);
 
     float targetW = g_idleW;
@@ -360,6 +411,11 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         UpdateTabLayout(tab, fS, sizeS, viewportW);
         targetW = (std::max)(g_idleW, g_tabLayout.targetW);
         targetH = g_tabLayout.targetH;
+    } else if (shouldExpandLyrics) {
+        float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "正在播放");
+        float lyricW = TextW(fS, sizeS, island.lyrics_line[0] ? island.lyrics_line : island.subtitle);
+        targetW = S(52.f) + (std::max)(titleW, lyricW) + S(16.f);
+        targetH = expandedH + S(8.f);
     } else if (shouldExpandNotify) {
         float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "通知");
         float descW = TextW(fS, sizeS, island.subtitle[0] ? island.subtitle : "模块已切换");
@@ -416,6 +472,9 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     // ── 【新增】交互检测与按压下陷反馈 ──
     bool hovered = ImGui::IsMouseHoveringRect(ImVec2(sMinX, sMinY), ImVec2(sMaxX, sMaxY));
     bool active = hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && isMusicMode && lyricsMode) {
+        g_lyricsExpanded = !g_lyricsExpanded;
+    }
     // 按下时 target 为 -1.0 (产生缩小效果)，悬停为 1.0 (放大)，默认 0.0
     g_springHover.SetTarget(active ? -1.f : (hovered ? 1.f : 0.f));
 
@@ -470,6 +529,13 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         RenderExpanded(dl, fP, fS, sizeP, sizeS, island,
                        fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
                        finalW, finalH, expAlpha, theme);
+    }
+
+    if (expAlpha > 0.01f && shouldExpandLyrics) {
+        float offsetY = (1.f - expandVal) * -S(8.f);
+        RenderLyricsExpanded(dl, fP, fS, sizeP, sizeS, island, music,
+                             fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
+                             finalW, finalH, expAlpha, theme);
     }
 
     if (tabAlpha > 0.01f && shouldExpandTab && hasTab) {

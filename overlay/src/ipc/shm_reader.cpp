@@ -58,6 +58,20 @@ bool ShmReader::ReadHudState(myiui::shared::HudState& out) const {
     return myiui::bridge::NativeState::Instance().ReadHud(out);
 }
 
+bool ShmReader::ReadInfoHudState(myiui::shared::InfoHudState& out) const {
+    if (GetScreenKind() != myiui::shared::ScreenKind::InGame) {
+        return false;
+    }
+    return myiui::bridge::NativeState::Instance().ReadInfoHud(out);
+}
+
+bool ShmReader::ReadMusicHudState(myiui::shared::MusicHudState& out) const {
+    if (GetScreenKind() != myiui::shared::ScreenKind::InGame) {
+        return false;
+    }
+    return myiui::bridge::NativeState::Instance().ReadMusicHud(out);
+}
+
 bool ShmReader::ReadTabListState(myiui::shared::TabListState& out) const {
     if (!IsIslandActive()) {
         return false;

@@ -1,9 +1,11 @@
 #include "ui/ui_manager.h"
 
+#include "config/user_settings.h"
 #include "ui/fonts.h"
 #include "ui/glass_panel.h"
 #include "ui/media_library.h"
 #include "ui/strings_zh.h"
+#include "ui/theme/theme_runtime.h"
 #include "ui/ui_scale.h"
 #include "ui/widgets/animated_toggle.h"
 #include "ui/widgets/yc_slider.h"
@@ -95,21 +97,33 @@ bool DrawSettingRow(const char* title, const char* desc, float controlW, auto&& 
 }  // namespace
 
 void UiManagerLoadSettings(UiManagerState& state) {
-    std::ifstream in(SettingsPath());
-    if (!in) return;
-    std::stringstream ss;
-    ss << in.rdbuf();
-    const std::string json = ss.str();
+    const auto& us = myiui::config::GetUserSettingsConst();
     auto& s = state.settings;
-    s.show_profile = ParseBool(json, "show_profile", s.show_profile);
-    s.glass_enabled = ParseBool(json, "glass_enabled", s.glass_enabled);
-    s.spring_anim = ParseBool(json, "spring_anim", s.spring_anim);
-    s.hover_scale_enabled = ParseBool(json, "hover_scale_enabled", s.hover_scale_enabled);
-    s.vignette_strength = ParseFloatSetting(json, "vignette_strength", s.vignette_strength);
-    s.hover_scale = ParseFloatSetting(json, "hover_scale", s.hover_scale);
-    s.accent_preset = ParseIntSetting(json, "accent_preset", s.accent_preset);
-    s.anim_duration_ms = ParseIntSetting(json, "anim_duration_ms", s.anim_duration_ms);
-    s.blur_strength = ParseIntSetting(json, "blur_strength", s.blur_strength);
+    s.show_profile = us.theme.show_profile;
+    s.glass_enabled = us.theme.glass_enabled;
+    s.spring_anim = us.theme.spring_anim;
+    s.hover_scale_enabled = us.theme.hover_scale_enabled;
+    s.vignette_strength = us.theme.vignette_strength;
+    s.hover_scale = us.theme.hover_scale;
+    s.accent_preset = us.theme.accent_preset;
+    s.anim_duration_ms = us.theme.anim_duration_ms;
+    s.blur_strength = us.theme.blur_strength;
+
+    std::ifstream in(SettingsPath());
+    if (in) {
+        std::stringstream ss;
+        ss << in.rdbuf();
+        const std::string json = ss.str();
+        s.show_profile = ParseBool(json, "show_profile", s.show_profile);
+        s.glass_enabled = ParseBool(json, "glass_enabled", s.glass_enabled);
+        s.spring_anim = ParseBool(json, "spring_anim", s.spring_anim);
+        s.hover_scale_enabled = ParseBool(json, "hover_scale_enabled", s.hover_scale_enabled);
+        s.vignette_strength = ParseFloatSetting(json, "vignette_strength", s.vignette_strength);
+        s.hover_scale = ParseFloatSetting(json, "hover_scale", s.hover_scale);
+        s.accent_preset = ParseIntSetting(json, "accent_preset", s.accent_preset);
+        s.anim_duration_ms = ParseIntSetting(json, "anim_duration_ms", s.anim_duration_ms);
+        s.blur_strength = ParseIntSetting(json, "blur_strength", s.blur_strength);
+    }
 
     auto& a = state.anim;
     a.toggle_glass = s.glass_enabled ? 1.f : 0.f;
@@ -122,46 +136,22 @@ void UiManagerLoadSettings(UiManagerState& state) {
 }
 
 void UiManagerSaveSettings(const UiManagerState& state) {
-    const std::wstring path = SettingsPath();
-    CreateDirectoryW((path.substr(0, path.find_last_of(L'\\'))).c_str(), nullptr);
-    std::ofstream out(path);
-    if (!out) return;
+    auto& us = myiui::config::GetUserSettings();
     const auto& s = state.settings;
-    out << "{\n"
-        << "  \"show_profile\": " << (s.show_profile ? "true" : "false") << ",\n"
-        << "  \"glass_enabled\": " << (s.glass_enabled ? "true" : "false") << ",\n"
-        << "  \"spring_anim\": " << (s.spring_anim ? "true" : "false") << ",\n"
-        << "  \"hover_scale_enabled\": " << (s.hover_scale_enabled ? "true" : "false") << ",\n"
-        << "  \"vignette_strength\": " << s.vignette_strength << ",\n"
-        << "  \"hover_scale\": " << s.hover_scale << ",\n"
-        << "  \"accent_preset\": " << s.accent_preset << ",\n"
-        << "  \"anim_duration_ms\": " << s.anim_duration_ms << ",\n"
-        << "  \"blur_strength\": " << s.blur_strength << "\n"
-        << "}\n";
+    us.theme.show_profile = s.show_profile;
+    us.theme.glass_enabled = s.glass_enabled;
+    us.theme.spring_anim = s.spring_anim;
+    us.theme.hover_scale_enabled = s.hover_scale_enabled;
+    us.theme.vignette_strength = s.vignette_strength;
+    us.theme.hover_scale = s.hover_scale;
+    us.theme.accent_preset = s.accent_preset;
+    us.theme.anim_duration_ms = s.anim_duration_ms;
+    us.theme.blur_strength = s.blur_strength;
+    myiui::config::UserSettingsRequestSave();
 }
 
 void UiManagerApplyAccentPreset(AppConfig& cfg, int preset) {
-    static const int kPresets[4][3] = {
-        {90, 200, 250},
-        {191, 90, 242},
-        {48, 209, 88},
-        {255, 214, 10},
-    };
-    const int idx = std::clamp(preset, 0, 3);
-    const int r = kPresets[idx][0];
-    const int g = kPresets[idx][1];
-    const int b = kPresets[idx][2];
-
-    auto fill = [&](int out[4], int alpha) {
-        out[0] = r;
-        out[1] = g;
-        out[2] = b;
-        out[3] = alpha;
-    };
-    fill(cfg.theme.accent, 255);
-    fill(cfg.theme.accent_fill, 184);
-    fill(cfg.theme.accent_hover_bg, 31);
-    fill(cfg.theme.border_accent, 115);
+    myiui::ui::theme::ThemeRuntimeApplyPreset(cfg, preset);
 }
 
 void UiManagerRenderPanel(const AppConfig& cfg, UiManagerState& state, float uiScale, bool* open) {

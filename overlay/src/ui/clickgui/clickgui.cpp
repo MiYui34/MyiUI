@@ -1,5 +1,6 @@
 #include "ui/clickgui/clickgui.h"
 
+#include "config/user_settings.h"
 #include "ui/fonts.h"
 #include "ui/island/island_tokens.h"
 #include "ui/logo_assets.h"
@@ -19,11 +20,11 @@ namespace myiui::ui::clickgui {
 namespace {
 
 // ── 简约毛玻璃 (Minimal Glass) Design tokens ──
-constexpr int kAccR = 64, kAccG = 194, kAccB = 255;
+int g_accR = 64, g_accG = 194, g_accB = 255;
 constexpr int kGlassBgBase[4]   = { 12, 12, 16, 120 };
 constexpr int kGlassBgTint[4]   = { 255, 255, 255, 8 };
 constexpr int kGlassBorder[4]   = { 255, 255, 255, 25 };
-constexpr int kGlassBorderAcc[4]= { 64, 194, 255, 80 };
+int g_glassBorderAcc[4]         = { 64, 194, 255, 80 };
 
 constexpr int kTextPrimary[4]   = { 250, 250, 250, 255 };
 constexpr int kTextSecondary[4] = { 180, 180, 185, 255 };
@@ -37,18 +38,11 @@ ImU32 RGBA(const int c[4], float aMul = 1.f) {
     return IM_COL32(c[0], c[1], c[2], static_cast<int>(std::min(255.f, c[3] * aMul)));
 }
 
+ImU32 AccCol(int alpha) { return IM_COL32(g_accR, g_accG, g_accB, alpha); }
+
 // ── State ──
 bool g_open = false;
 float g_openAnim = 0.f;
-
-bool g_islandVisible = true;
-bool g_islandBlur = false;
-bool g_hudVisible = true;
-bool g_chatVisible = true;
-bool g_showFps = true;
-float g_islandScale = 3.0f;
-float g_islandOpacity = 0.5f;
-float g_uiBrightness = 1.0f;
 
 int g_activeCategory = 0;
 char g_searchBuf[256] = {};
@@ -81,17 +75,26 @@ struct ModuleItem {
 };
 
 ModuleItem g_hudItems[] = {
-    {"灵动岛",   "显示灵动岛",         ItemType::Toggle, &g_islandVisible, nullptr,       0, 0, nullptr, true,  -1, 0.f, 0.f},
-    {"FPS显示",  "在灵动岛显示FPS",    ItemType::Toggle, &g_showFps,       nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
-    {"缩放",     "灵动岛大小",         ItemType::Slider, nullptr,          &g_islandScale,1.f, 6.f, "x", false, 0, 0.f, 0.f},
-    {"透明度",   "灵动岛不透明度",     ItemType::Slider, nullptr,          &g_islandOpacity, 0.1f, 0.9f, "", false, 0, 0.f, 0.f},
-    {"背景模糊", "灵动岛毛玻璃效果",   ItemType::Toggle, &g_islandBlur,    nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
-    {"HUD显示",  "显示游戏HUD",        ItemType::Toggle, &g_hudVisible,    nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
-    {"聊天显示", "显示游戏聊天",       ItemType::Toggle, &g_chatVisible,   nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"灵动岛",   "显示灵动岛",         ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, true,  -1, 0.f, 0.f},
+    {"FPS显示",  "在灵动岛显示FPS",    ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
+    {"缩放",     "灵动岛大小",         ItemType::Slider, nullptr, nullptr,       1.f, 6.f, "x", false, 0, 0.f, 0.f},
+    {"透明度",   "灵动岛不透明度",     ItemType::Slider, nullptr, nullptr,       0.1f, 0.9f, "", false, 0, 0.f, 0.f},
+    {"背景模糊", "灵动岛毛玻璃效果",   ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
+    {"HUD显示",  "显示游戏HUD",        ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"聊天显示", "显示游戏聊天",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+};
+
+ModuleItem g_infoItems[] = {
+    {"坐标",     "显示 XYZ",           ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"延迟",     "显示 Ping",          ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"速度",     "显示移动速度",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"NowPlaying", "音乐播放卡片",     ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"波形",     "音乐波形动画",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 3, 0.f, 0.f},
 };
 
 ModuleItem g_visualItems[] = {
-    {"亮度", "游戏画面亮度", ItemType::Slider, nullptr, &g_uiBrightness, 0.3f, 1.5f, "x", false, -1, 0.f, 0.f},
+    {"亮度", "游戏画面亮度", ItemType::Slider, nullptr, nullptr, 0.3f, 1.5f, "x", false, -1, 0.f, 0.f},
+    {"Material You", "封面取色主题", ItemType::Toggle, nullptr, nullptr, 0, 0, nullptr, false, -1, 0.f, 0.f},
 };
 
 struct Category {
@@ -104,17 +107,36 @@ struct Category {
 
 Category g_categories[] = {
     {"HUD", "H", g_hudItems, 7, false},
-    {"视觉", "V", g_visualItems, 1, false},
+    {"信息", "I", g_infoItems, 5, false},
+    {"视觉", "V", g_visualItems, 2, false},
     {"音乐", "M", nullptr, 0, true},
 };
-constexpr int kCategoryCount = 3;
+constexpr int kCategoryCount = 4;
+
+void BindSettingsPointers() {
+    auto& s = myiui::config::GetUserSettings();
+    g_hudItems[0].boolValue = &s.island.visible;
+    g_hudItems[1].boolValue = &s.island.show_fps;
+    g_hudItems[2].floatValue = &s.island.scale;
+    g_hudItems[3].floatValue = &s.island.opacity;
+    g_hudItems[4].boolValue = &s.island.blur;
+    g_hudItems[5].boolValue = &s.hud_visible;
+    g_hudItems[6].boolValue = &s.chat_visible;
+    g_infoItems[0].boolValue = &s.info_coords.enabled;
+    g_infoItems[1].boolValue = &s.info_ping.enabled;
+    g_infoItems[2].boolValue = &s.info_speed.enabled;
+    g_infoItems[3].boolValue = &s.now_playing.enabled;
+    g_infoItems[4].boolValue = &s.now_playing.show_waveform;
+    g_visualItems[0].floatValue = &s.theme.ui_brightness;
+    g_visualItems[1].boolValue = &s.theme.material_you;
+}
 
 // ── 核心毛玻璃渲染 ──
 void DrawGlass(ImDrawList* dl, ImVec2 min, ImVec2 max, float radius, float alpha, bool accent = false) {
     dl->AddRectFilled(min, max, RGBA(kGlassBgBase, alpha), radius);
     const int tintAlpha = accent ? 25 : kGlassBgTint[3];
     dl->AddRectFilled(min, max, IM_COL32(255, 255, 255, static_cast<int>(tintAlpha * alpha)), radius);
-    const int* bc = accent ? kGlassBorderAcc : kGlassBorder;
+    const int* bc = accent ? g_glassBorderAcc : kGlassBorder;
     dl->AddRect(min, max, RGBA(bc, alpha), radius, 0, 1.0f);
     if (!accent) {
         ImVec2 topEdgeMax = ImVec2(max.x, min.y + radius + 1.f);
@@ -127,7 +149,7 @@ void DrawToggle(ImDrawList* dl, ImVec2 pos, float size, bool on, float animVal, 
     const float w = size * 1.8f;
     const float h = size * 0.9f;
     const float r = h * 0.5f;
-    ImU32 trackCol = on ? IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(230 * alpha))
+    ImU32 trackCol = on ? AccCol(static_cast<int>(230 * alpha))
                         : IM_COL32(255, 255, 255, static_cast<int>(20 * alpha));
     dl->AddRectFilled(pos, ImVec2(pos.x + w, pos.y + h), trackCol, r);
     dl->AddRect(pos, ImVec2(pos.x + w, pos.y + h), IM_COL32(0,0,0, static_cast<int>(40 * alpha)), r, 0, 1.0f);
@@ -181,9 +203,12 @@ void DrawCard(const char* id, ModuleItem& item, float alpha, float dt, ImVec2 cM
 
         if (item.hasPopup && hovered) {
             dl->AddText(font, 24.f, ImVec2(tX - 120.f, tY + 2.f),
-                        IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(255 * alpha * item.animHover)), "设置");
+                        AccCol(static_cast<int>(255 * alpha * item.animHover)), "设置");
         }
-        if (lClick && item.boolValue) *item.boolValue = !*item.boolValue;
+        if (lClick && item.boolValue) {
+            *item.boolValue = !*item.boolValue;
+            myiui::config::UserSettingsRequestSave();
+        }
         if (rClick && item.hasPopup) ImGui::OpenPopup("##settings_popup");
 
     } else if (item.type == ItemType::Slider && item.floatValue) {
@@ -193,7 +218,7 @@ void DrawCard(const char* id, ModuleItem& item, float alpha, float dt, ImVec2 cM
         else snprintf(valBuf, sizeof(valBuf), "%.1f", *item.floatValue);
         
         float valW = TextW(font, nameSize, valBuf);
-        dl->AddText(font, nameSize, ImVec2(cMax.x - valW - pad, cMin.y + 28.f), RGBA(kGlassBorderAcc, alpha), valBuf);
+        dl->AddText(font, nameSize, ImVec2(cMax.x - valW - pad, cMin.y + 28.f), RGBA(g_glassBorderAcc, alpha), valBuf);
 
         const float sH = 8.f;
         const float sR = sH * 0.5f;
@@ -203,13 +228,14 @@ void DrawCard(const char* id, ModuleItem& item, float alpha, float dt, ImVec2 cM
         
         dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW, sY + sH), IM_COL32(255, 255, 255, static_cast<int>(20 * alpha)), sR);
         float pct = ClampF((*item.floatValue - item.floatMin) / (item.floatMax - item.floatMin), 0.f, 1.f);
-        dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW * pct, sY + sH), IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(230 * alpha)), sR);
+        dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW * pct, sY + sH), AccCol(static_cast<int>(230 * alpha)), sR);
         dl->AddCircleFilled(ImVec2(sX + sW * pct, sY + sR), 12.f, IM_COL32(255, 255, 255, static_cast<int>(255 * alpha)), 24);
         
         // [FIX]: 移除 IsMouseDragging，允许点击轨道直接跳转位置
         if (active) {
             float mp = ClampF((ImGui::GetMousePos().x - sX) / sW, 0.f, 1.f);
             *item.floatValue = item.floatMin + (item.floatMax - item.floatMin) * mp;
+            myiui::config::UserSettingsRequestSave();
         }
     }
 }
@@ -237,7 +263,7 @@ void DrawChildRow(const char* id, ModuleItem& item, float alpha, float dt, ImVec
     const float bgAlpha = 0.5f + 0.5f * item.animHover;
     dl->AddRectFilled(cMin, cMax, IM_COL32(255, 255, 255, static_cast<int>(10 * alpha * bgAlpha)), kRadiusSm);
     if (item.animHover > 0.01f) {
-        dl->AddRect(cMin, cMax, IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(40 * alpha * item.animHover)), kRadiusSm, 0, 1.f);
+        dl->AddRect(cMin, cMax, AccCol(static_cast<int>(40 * alpha * item.animHover)), kRadiusSm, 0, 1.f);
     }
 
     const float pad = 28.f;
@@ -250,7 +276,10 @@ void DrawChildRow(const char* id, ModuleItem& item, float alpha, float dt, ImVec
         const float tX = cMax.x - (tSz * 1.8f) - pad;
         const float tY = cMin.y + ((cMax.y - cMin.y) - tSz * 0.9f) * 0.5f;
         DrawToggle(dl, ImVec2(tX, tY), tSz, isOn, item.animToggle, alpha);
-        if (lClick && item.boolValue) *item.boolValue = !*item.boolValue;
+        if (lClick && item.boolValue) {
+            *item.boolValue = !*item.boolValue;
+            myiui::config::UserSettingsRequestSave();
+        }
 
     } else if (item.type == ItemType::Slider && item.floatValue) {
         char valBuf[64];
@@ -259,7 +288,7 @@ void DrawChildRow(const char* id, ModuleItem& item, float alpha, float dt, ImVec
         else snprintf(valBuf, sizeof(valBuf), "%.1f", *item.floatValue);
         
         float valW = TextW(font, 26.f, valBuf);
-        dl->AddText(font, 26.f, ImVec2(cMax.x - valW - pad, cMin.y + (cMax.y - cMin.y - 26.f) * 0.5f), RGBA(kGlassBorderAcc, alpha), valBuf);
+        dl->AddText(font, 26.f, ImVec2(cMax.x - valW - pad, cMin.y + (cMax.y - cMin.y - 26.f) * 0.5f), RGBA(g_glassBorderAcc, alpha), valBuf);
 
         const float sH = 6.f;
         const float sR = sH * 0.5f;
@@ -271,7 +300,7 @@ void DrawChildRow(const char* id, ModuleItem& item, float alpha, float dt, ImVec
         if (sW > 60.f) {
             dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW, sY + sH), IM_COL32(255, 255, 255, static_cast<int>(20 * alpha)), sR);
             float pct = ClampF((*item.floatValue - item.floatMin) / (item.floatMax - item.floatMin), 0.f, 1.f);
-            dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW * pct, sY + sH), IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(230 * alpha)), sR);
+            dl->AddRectFilled(ImVec2(sX, sY), ImVec2(sX + sW * pct, sY + sH), AccCol(static_cast<int>(230 * alpha)), sR);
             dl->AddCircleFilled(ImVec2(sX + sW * pct, sY + sR), 10.f, IM_COL32(255, 255, 255, static_cast<int>(255 * alpha)), 20);
             
             if (active) {
@@ -306,10 +335,12 @@ void DrawSettingsPopup(float alpha) {
         ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.92f, alpha), "重置为默认");
         ImGui::SameLine(360);
         if (ImGui::SmallButton("重置")) {
-            g_islandScale = 3.0f;
-            g_islandOpacity = 0.5f;
-            g_islandBlur = false;
-            g_showFps = true;
+            auto& s = myiui::config::GetUserSettings().island;
+            s.scale = 3.f;
+            s.opacity = 0.5f;
+            s.blur = false;
+            s.show_fps = true;
+            myiui::config::UserSettingsRequestSave();
         }
 
         ImGui::Dummy(ImVec2(1, 4));
@@ -336,7 +367,7 @@ void DrawSidebar(ImVec2 min, ImVec2 max, float alpha, float dt) {
         DrawLogoFit(dl, logos.mark, logoMin, logoMax, alpha);
     } else {
         dl->AddCircleFilled(ImVec2(min.x + 64.f, logoY + 36.f), 36.f,
-                            IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(255 * alpha)), 32);
+                            AccCol(static_cast<int>(255 * alpha)), 32);
         dl->AddText(font, 40.f, ImVec2(min.x + 50.f, logoY + 16.f),
                     IM_COL32(255, 255, 255, static_cast<int>(255 * alpha)), "M");
     }
@@ -359,12 +390,12 @@ void DrawSidebar(ImVec2 min, ImVec2 max, float alpha, float dt) {
         g_catHover[i] = LerpF(std::min(1.f, dt * 15.f), g_catHover[i], hT);
 
         if (g_catHover[i] > 0.01f) {
-            ImU32 bg = act ? IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(30 * alpha * g_catHover[i]))
+            ImU32 bg = act ? AccCol(static_cast<int>(30 * alpha * g_catHover[i]))
                            : IM_COL32(255, 255, 255, static_cast<int>(12 * alpha * g_catHover[i]));
             dl->AddRectFilled(cMin, cMax, bg, kRadiusSm);
         }
 
-        ImU32 iconCol = act ? IM_COL32(kAccR, kAccG, kAccB, static_cast<int>(255 * alpha)) : RGBA(kTextDim, alpha);
+        ImU32 iconCol = act ? AccCol(static_cast<int>(255 * alpha)) : RGBA(kTextDim, alpha);
         dl->AddText(font, 32.f, ImVec2(cMin.x + 36.f, cMin.y + catH * 0.5f - 16.f), iconCol, g_categories[i].icon);
 
         ImU32 nc = act ? RGBA(kTextPrimary, alpha) : RGBA(kTextSecondary, alpha);
@@ -383,7 +414,19 @@ void DrawSidebar(ImVec2 min, ImVec2 max, float alpha, float dt) {
     dl->AddText(font, 24.f, ImVec2(min.x + 116.f, profY + 52.f), RGBA(kTextDim, alpha * 0.8f), "Online");
 }
 
+void ApplyAccentInternal(const int accent[4]) {
+    if (!accent) return;
+    g_accR = accent[0];
+    g_accG = accent[1];
+    g_accB = accent[2];
+    g_glassBorderAcc[0] = accent[0];
+    g_glassBorderAcc[1] = accent[1];
+    g_glassBorderAcc[2] = accent[2];
+}
+
 }  // namespace
+
+void SyncTheme(const int accent[4]) { ApplyAccentInternal(accent); }
 
 void Toggle() { g_open = !g_open; }
 bool IsOpen() { return g_open; }
@@ -394,13 +437,13 @@ bool HandleKey(int key, int, int action) {
     return false;
 }
 
-bool IslandVisible() { return g_islandVisible; }
-float IslandScale() { return g_islandScale; }
-bool IslandBlur() { return g_islandBlur; }
-float IslandOpacity() { return g_islandOpacity; }
-bool ShowFps() { return g_showFps; }
-bool HudVisible() { return g_hudVisible; }
-bool ChatVisible() { return g_chatVisible; }
+bool IslandVisible() { return myiui::config::GetUserSettingsConst().island.visible; }
+float IslandScale() { return myiui::config::GetUserSettingsConst().island.scale; }
+bool IslandBlur() { return myiui::config::GetUserSettingsConst().island.blur; }
+float IslandOpacity() { return myiui::config::GetUserSettingsConst().island.opacity; }
+bool ShowFps() { return myiui::config::GetUserSettingsConst().island.show_fps; }
+bool HudVisible() { return myiui::config::GetUserSettingsConst().hud_visible; }
+bool ChatVisible() { return myiui::config::GetUserSettingsConst().chat_visible; }
 
 bool g_suppressEscUp = false;
 void RequestSuppressEscUp() { g_suppressEscUp = true; }
@@ -410,6 +453,7 @@ bool ConsumeSuppressEscUp() {
 }
 
 void Render(float viewportW, float viewportH, float dt) {
+    BindSettingsPointers();
     if (!g_open && g_openAnim < 0.01f) return;
 
     // GUI 刚打开时清除鼠标按下状态，防止游戏中的鼠标按下残留导致首次点击无效
@@ -503,7 +547,7 @@ void Render(float viewportW, float viewportH, float dt) {
     ImGui::PushItemWidth(searchW - 56.f - 20.f);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.96f, 0.97f, 0.98f, alpha));
-    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(kAccR, kAccG, kAccB, 80));
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, AccCol(80));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 16));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, kRadiusSm);

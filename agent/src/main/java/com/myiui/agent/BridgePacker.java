@@ -6,7 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 final class BridgePacker {
-    private static final int HUD_STATE_SIZE = 108;
+    static final int HUD_STATE_SIZE = 114;
+    static final int INFO_HUD_STATE_SIZE = 64;
+    static final int MUSIC_HUD_STATE_SIZE = 336;
     private static final int TAB_LIST_STATE_SIZE = 824;
 
     private BridgePacker() {}
@@ -18,7 +20,8 @@ final class BridgePacker {
         buf.put((byte) snap.selectedSlot);
         buf.put((byte) Math.max(1, Math.min(4, snap.guiScale)));
         buf.putShort((short) (hudSeq & 0xFFFF));
-        buf.putShort((short) 0);
+        buf.put(HudBridge.HUD_VERSION);
+        buf.put(snap.creative ? (byte) 1 : (byte) 0);
         buf.putFloat(snap.health);
         buf.putFloat(snap.healthMax);
         buf.putFloat(snap.absorption);
@@ -37,11 +40,60 @@ final class BridgePacker {
         buf.putFloat(snap.xpProgress);
         buf.putShort((short) 0);
         for (int i = 0; i < 9; i++) {
-            HudBridge.HotbarSlot slot = snap.slots[i] == null ? new HudBridge.HotbarSlot() : snap.slots[i];
-            buf.putShort(slot.itemId);
-            buf.put(slot.count);
-            buf.put(slot.durabilityPct);
-            buf.put(slot.cooldownPct);
+            putHotbarSlot(buf, snap.slots[i]);
+        }
+        putHotbarSlot(buf, snap.offhand);
+        return buf.array();
+    }
+
+    private static void putHotbarSlot(ByteBuffer buf, HudBridge.HotbarSlot slot) {
+        HudBridge.HotbarSlot s = slot == null ? new HudBridge.HotbarSlot() : slot;
+        buf.putShort(s.itemId);
+        buf.put(s.count);
+        buf.put(s.durabilityPct);
+        buf.put(s.cooldownPct);
+        buf.put((byte) 0);
+    }
+
+    static byte[] packInfo(InfoHudBridge.InfoSnapshot snap, int infoSeq) {
+        ByteBuffer buf = ByteBuffer.allocate(INFO_HUD_STATE_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+        buf.put((byte) 1);
+        buf.put((byte) 0);
+        buf.putShort((short) (infoSeq & 0xFFFF));
+        buf.putInt(snap.blockX);
+        buf.putInt(snap.blockY);
+        buf.putInt(snap.blockZ);
+        buf.putShort((short) snap.pingMs);
+        buf.putShort((short) snap.fps);
+        buf.putFloat(snap.speedBps);
+        buf.putFloat(snap.yaw);
+        buf.putFloat(snap.pitch);
+        writeFixed(buf, snap.biome, 16);
+        writeFixed(buf, snap.direction, 4);
+        while (buf.position() < INFO_HUD_STATE_SIZE) {
+            buf.put((byte) 0);
+        }
+        return buf.array();
+    }
+
+    static byte[] packMusic(MusicHudBridge.MusicSnapshot snap, int musicSeq) {
+        ByteBuffer buf = ByteBuffer.allocate(MUSIC_HUD_STATE_SIZE).order(ByteOrder.LITTLE_ENDIAN);
+        buf.put((byte) ((snap.playing || snap.paused) ? 1 : 0));
+        buf.put(snap.playing ? (byte) 1 : (byte) 0);
+        buf.put(snap.paused ? (byte) 1 : (byte) 0);
+        buf.put((byte) 0);
+        buf.putShort((short) (musicSeq & 0xFFFF));
+        buf.putShort((short) 0);
+        buf.putInt((int) (snap.positionMs & 0xFFFFFFFFL));
+        buf.putInt((int) (snap.durationMs & 0xFFFFFFFFL));
+        writeFixed(buf, snap.title, 48);
+        writeFixed(buf, snap.artist, 48);
+        writeFixed(buf, snap.coverUrl, 96);
+        for (int i = 0; i < MusicHudBridge.WAVEFORM_BINS; i++) {
+            float v = i < snap.waveform.length ? snap.waveform[i] : 0f;
+            buf.putFloat(v);
+        }
+        while (buf.position() < MUSIC_HUD_STATE_SIZE) {
             buf.put((byte) 0);
         }
         return buf.array();

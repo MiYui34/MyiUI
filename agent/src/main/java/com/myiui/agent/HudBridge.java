@@ -4,7 +4,7 @@ import java.lang.reflect.Method;
 
 /** Collects in-game HUD stats and writes them into shared memory for the overlay DLL. */
 public final class HudBridge {
-    private static final int HUD_STATE_SIZE = 96;
+    static final byte HUD_VERSION = 2;
     private static final int HOTBAR_SLOTS = 9;
     private static final byte FLAG_LOW_HEALTH = 1;
     private static final byte FLAG_DAMAGED = 2;
@@ -14,6 +14,7 @@ public final class HudBridge {
     private static float lastHealth = -1f;
     private static int damageFlashTicks = 0;
     private static boolean appleSkinLoaded;
+    private static float lastTickDelta = 0f;
 
     private HudBridge() {}
 
@@ -49,12 +50,18 @@ public final class HudBridge {
             if (damageFlashTicks > 0) {
                 damageFlashTicks--;
             }
+            lastTickDelta = tickDelta;
             SharedState.broadcastInGameIfNeeded();
             SharedState.writeHudState(client, player, buildFlags(player));
+            InfoHudBridge.onHudRender(client, player);
             PlayerListBridge.onHudRender(client);
         } catch (Throwable t) {
             AgentLog.error("HudBridge.onHudRender failed", t);
         }
+    }
+
+    static byte snapshotFlags(Object client, Object player) {
+        return buildFlags(player);
     }
 
     private static byte buildFlags(Object player) {
@@ -93,7 +100,9 @@ public final class HudBridge {
         snap.underwater = !readBoolean(player, "canBreathe", "method_5677");
         snap.selectedSlot = readSelectedSlot(client, player);
         snap.guiScale = readGuiScale(client);
-        snap.slots = readHotbarSlots(player);
+        snap.creative = readCreative(player);
+        snap.slots = readHotbarSlots(client, player);
+        snap.offhand = readOffhand(client, player);
         fillHotbarLayout(client, snap);
         snap.xpLevel = readInt(player, "getExperienceLevel", "method_6115");
         if (snap.xpLevel <= 0) {
@@ -198,14 +207,37 @@ public final class HudBridge {
 
     private static int readSelectedSlot(Object client, Object player) {
         Object inventory = getInventory(player);
-        if (inventory == null) {
-            return 0;
+        if (inventory != null) {
+            for (String[] method : new String[][]{
+                    {"getSelectedSlot", "method_67532"},
+                    {"getSelectedSlot", "method_6751"},
+                    {"getSelectedSlot", "method_5439"},
+                    {"getSelectedSlot", "getSelectedSlot"},
+            }) {
+                try {
+                    Method m = ReflectUtil.findInstanceMethod(inventory.getClass(), method[0], method[1]);
+                    Object value = m.invoke(inventory);
+                    if (value instanceof Number n) {
+                        int slot = n.intValue();
+                        if (slot >= 0 && slot <= 8) {
+                            return slot;
+                        }
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                }
+            }
+            for (String[] field : new String[][]{
+                    {"selectedSlot", "field_7545"},
+                    {"selectedSlot", "field_7544"},
+                    {"field_7545", "selectedSlot"},
+            }) {
+                int slot = readInt(inventory, field[0], field[1]);
+                if (slot >= 0 && slot <= 8) {
+                    return slot;
+                }
+            }
         }
-        int slot = readInt(inventory, "selectedSlot", "field_7545");
-        if (slot < 0 || slot > 8) {
-            slot = 0;
-        }
-        return slot;
+        return 0;
     }
 
     private static void fillHotbarLayout(Object client, HudSnapshot snap) {
@@ -257,7 +289,7 @@ public final class HudBridge {
         return 2;
     }
 
-    private static HotbarSlot[] readHotbarSlots(Object player) {
+    private static HotbarSlot[] readHotbarSlots(Object client, Object player) {
         HotbarSlot[] slots = new HotbarSlot[HOTBAR_SLOTS];
         Object inventory = getInventory(player);
         if (inventory == null) {
@@ -265,9 +297,34 @@ public final class HudBridge {
         }
         for (int i = 0; i < HOTBAR_SLOTS; i++) {
             Object stack = getStackInSlot(inventory, i);
-            slots[i] = describeStack(stack);
+            slots[i] = describeStack(client, stack, lastTickDelta);
         }
         return slots;
+    }
+
+    private static HotbarSlot readOffhand(Object client, Object player) {
+        try {
+            Object inv = getInventory(player);
+            if (inv == null) return new HotbarSlot();
+            Object stack = invokeObject(inv, "getOffHandStack", "method_6047");
+            if (stack == null) {
+                stack = invokeObject(inv, "getOffHandStack", "method_5438");
+            }
+            return describeStack(client, stack, lastTickDelta);
+        } catch (Throwable ignored) {
+            return new HotbarSlot();
+        }
+    }
+
+    private static boolean readCreative(Object player) {
+        try {
+            Object abilities = ReflectUtil.getField(player, "abilities", "field_7510");
+            if (abilities == null) return false;
+            Object creative = ReflectUtil.getField(abilities, "creativeMode", "field_7477");
+            if (creative instanceof Boolean b) return b;
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     private static Object getInventory(Object player) {
@@ -309,7 +366,7 @@ public final class HudBridge {
         return null;
     }
 
-    private static HotbarSlot describeStack(Object stack) {
+    private static HotbarSlot describeStack(Object client, Object stack, float tickDelta) {
         HotbarSlot slot = new HotbarSlot();
         if (stack == null) {
             return slot;
@@ -320,7 +377,7 @@ public final class HudBridge {
         slot.count = (byte) Math.min(127, readInt(stack, "getCount", "method_7947"));
         Object item = invokeObject(stack, "getItem", "method_7909");
         if (item != null) {
-            slot.itemId = (short) (item.hashCode() & 0x7FFF);
+            slot.itemId = (short) resolveRegistryItemId(item);
         }
         int maxDamage = readInt(stack, "getMaxDamage", "method_7936");
         if (maxDamage > 0) {
@@ -330,7 +387,42 @@ public final class HudBridge {
         } else {
             slot.durabilityPct = (byte) 255;
         }
+        slot.cooldownPct = readCooldownPct(client, stack, tickDelta);
         return slot;
+    }
+
+    private static int resolveRegistryItemId(Object item) {
+        try {
+            Class<?> registries = Class.forName("net.minecraft.registry.Registries", true, item.getClass().getClassLoader());
+            Object itemRegistry = ReflectUtil.getField(registries, "ITEM", "field_41178");
+            if (itemRegistry == null) {
+                itemRegistry = registries.getField("ITEM").get(null);
+            }
+            Method getRawId = itemRegistry.getClass().getMethod("getRawId", Object.class);
+            Object id = getRawId.invoke(itemRegistry, item);
+            if (id instanceof Number n) {
+                return Math.max(0, Math.min(32767, n.intValue()));
+            }
+        } catch (Throwable ignored) {
+        }
+        return Math.max(0, item.hashCode() & 0x7FFF);
+    }
+
+    private static byte readCooldownPct(Object client, Object stack, float tickDelta) {
+        try {
+            Object manager = ReflectUtil.getField(client, "itemCooldownManager", "field_1755");
+            if (manager == null) {
+                manager = invokeObject(client, "getItemCooldownManager", "method_1568");
+            }
+            if (manager == null) return 0;
+            Method progress = ReflectUtil.findInstanceMethod(manager.getClass(), "getCooldownProgress", "method_7905", stack.getClass(), float.class);
+            Object v = progress.invoke(manager, stack, tickDelta);
+            if (v instanceof Number n) {
+                return (byte) Math.min(100, Math.max(0, Math.round(n.floatValue() * 100f)));
+            }
+        } catch (Throwable ignored) {
+        }
+        return 0;
     }
 
     private static float readFloat(Object target, String named, String intermediary) {
@@ -340,7 +432,17 @@ public final class HudBridge {
 
     private static int readInt(Object target, String named, String intermediary) {
         Object value = invokeObject(target, named, intermediary);
-        return value instanceof Number n ? n.intValue() : 0;
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            value = ReflectUtil.getField(target, named, intermediary);
+            if (value instanceof Number n) {
+                return n.intValue();
+            }
+        } catch (ReflectiveOperationException ignored) {
+        }
+        return 0;
     }
 
     private static boolean readBoolean(Object target, String named, String intermediary) {
@@ -374,7 +476,9 @@ public final class HudBridge {
         int hotbarSlotPx;
         int xpLevel;
         float xpProgress;
+        boolean creative;
         HotbarSlot[] slots = new HotbarSlot[HOTBAR_SLOTS];
+        HotbarSlot offhand = new HotbarSlot();
     }
 
     static final class HotbarSlot {

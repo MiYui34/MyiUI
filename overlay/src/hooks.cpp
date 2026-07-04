@@ -2,6 +2,7 @@
 
 #include "bridge/native_state.h"
 #include "config/config_loader.h"
+#include "config/user_settings.h"
 #include "inject/game_hook.h"
 #include "jvm/jvm_context.h"
 #include "jvm/jvm_log.h"
@@ -13,8 +14,10 @@
 #include "ui/fonts.h"
 #include "ui/menu_app.h"
 #include "ui/clickgui/clickgui.h"
+#include "ui/hud/hud_renderer.h"
 #include "ui/island/island_renderer.h"
 #include "ui/music/music_panel.h"
+#include "ui/theme/theme_runtime.h"
 
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -46,6 +49,7 @@ static ShmReader g_shm{};
 static bool g_imguiReady = false;
 static bool g_wndProcHooked = false;
 static bool g_configLoaded = false;
+static bool g_userSettingsLoaded = false;
 static HWND g_hwnd = nullptr;
 static WNDPROC g_originalWndProc = nullptr;
 static std::atomic<bool> g_menuActive{false};
@@ -66,6 +70,9 @@ static uint32_t g_lastFrameH = 0;
 static uint32_t g_lastIslandSeq = 0;
 static uint8_t g_lastIslandMode = 255;
 static int g_leaveGameGlCooldown = 0;
+static int g_viewportResizeCooldown = 0;
+static uint32_t g_lastViewportW = 0;
+static uint32_t g_lastViewportH = 0;
 
 void OverlayInvalidateBackgroundTexture() {
     std::lock_guard lock(g_frameMutex);
@@ -163,6 +170,9 @@ static void RenderOverlayFrame(HWND hwnd) {
         myiui::overlay::OverlayLog(g_configLoaded ? L"Config ready." : L"Config load failed.");
         if (g_configLoaded) {
             MenuAppInit(g_config);
+            myiui::config::UserSettingsLoad();
+            myiui::ui::theme::ThemeRuntimeInit();
+            g_userSettingsLoaded = true;
         }
         if (g_shm.IsValid()) {
             const auto kind = g_shm.GetScreenKind();
@@ -295,7 +305,23 @@ static void RenderOverlayFrame(HWND hwnd) {
     GLint viewport[4]{};
     glGetIntegerv(GL_VIEWPORT, viewport);
     if (viewport[2] > 0 && viewport[3] > 0) {
+        const uint32_t vw = static_cast<uint32_t>(viewport[2]);
+        const uint32_t vh = static_cast<uint32_t>(viewport[3]);
+        if (g_lastViewportW > 0 && g_lastViewportH > 0 &&
+            (vw != g_lastViewportW || vh != g_lastViewportH)) {
+            g_viewportResizeCooldown = 12;
+            OverlayInvalidateBackgroundTexture();
+            myiui::overlay::OverlayLog(L"Viewport resize — GL cooldown.");
+        }
+        g_lastViewportW = vw;
+        g_lastViewportH = vh;
         ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+    }
+
+    if (g_viewportResizeCooldown > 0) {
+        g_viewportResizeCooldown--;
+        g_overlayRendering = false;
+        return;
     }
 
     if (overlayActive) {
@@ -311,6 +337,13 @@ static void RenderOverlayFrame(HWND hwnd) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
+
+    if (g_configLoaded && g_userSettingsLoaded && viewport[2] > 0 && viewport[3] > 0) {
+        const float dt = ImGui::GetIO().DeltaTime;
+        myiui::config::UserSettingsTick(dt);
+        myiui::ui::theme::ThemeRuntimeTick(g_config, myiui::config::GetUserSettingsConst(), dt);
+        myiui::ui::clickgui::SyncTheme(g_config.theme.accent);
+    }
 
     // 处理待上传的封面纹理（音乐面板用）
     myiui::ui::music::MusicPanelTick();
@@ -328,7 +361,12 @@ static void RenderOverlayFrame(HWND hwnd) {
             MenuAppRender(ctx);
         } else if (islandActive || clickguiOpen) {
             const float dt = ImGui::GetIO().DeltaTime;
-            // ClickGui 打开时隐藏所有游戏内组件（灵动岛）
+            if (myiui::ui::clickgui::HudVisible() && !clickguiOpen &&
+                g_shm.GetScreenKind() == myiui::shared::ScreenKind::InGame) {
+                myiui::ui::hud::HudRender(g_config, g_shm, static_cast<float>(viewport[2]),
+                                          static_cast<float>(viewport[3]), dt);
+            }
+            // ClickGui 打开时隐藏灵动岛
             if (!clickguiOpen) {
                 if (islandActive && myiui::ui::clickgui::IslandVisible()) {
                     myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
@@ -348,6 +386,10 @@ static void RenderOverlayFrame(HWND hwnd) {
 }
 
 static LRESULT CALLBACK WndProcHook(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_SIZE || msg == WM_DISPLAYCHANGE) {
+        g_viewportResizeCooldown = 12;
+        OverlayInvalidateBackgroundTexture();
+    }
     // 先处理 ESC keyup 抑制（即使 ClickGui 刚被 ESC 关闭，也要吞掉这个 keyup）
     if (msg == WM_KEYUP && wParam == VK_ESCAPE) {
         if (myiui::ui::clickgui::ConsumeSuppressEscUp()) {

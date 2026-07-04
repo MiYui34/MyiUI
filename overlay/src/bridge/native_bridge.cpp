@@ -178,6 +178,24 @@ void JNICALL Java_com_myiui_agent_NativeBridge_pushHudState(JNIEnv* env, jclass 
     NativeState::Instance().PushHud(state);
 }
 
+void JNICALL Java_com_myiui_agent_NativeBridge_pushInfoHudState(JNIEnv* env, jclass /*clazz*/, jbyteArray packed) {
+    if (!packed) return;
+    const jsize len = env->GetArrayLength(packed);
+    if (len < static_cast<jsize>(sizeof(myiui::shared::InfoHudState))) return;
+    myiui::shared::InfoHudState state{};
+    env->GetByteArrayRegion(packed, 0, static_cast<jsize>(sizeof(state)), reinterpret_cast<jbyte*>(&state));
+    NativeState::Instance().PushInfoHud(state);
+}
+
+void JNICALL Java_com_myiui_agent_NativeBridge_pushMusicHudState(JNIEnv* env, jclass /*clazz*/, jbyteArray packed) {
+    if (!packed) return;
+    const jsize len = env->GetArrayLength(packed);
+    if (len < static_cast<jsize>(sizeof(myiui::shared::MusicHudState))) return;
+    myiui::shared::MusicHudState state{};
+    env->GetByteArrayRegion(packed, 0, static_cast<jsize>(sizeof(state)), reinterpret_cast<jbyte*>(&state));
+    NativeState::Instance().PushMusicHud(state);
+}
+
 void JNICALL Java_com_myiui_agent_NativeBridge_pushTabListState(JNIEnv* env, jclass /*clazz*/, jbyteArray packed) {
     if (!packed) {
         return;
@@ -258,6 +276,10 @@ jint RegisterBridgeNatives(JNIEnv* env, jclass nativeBridgeClass) {
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushIslandState)},
         {const_cast<char*>("pushHudState"), const_cast<char*>("([B)V"),
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushHudState)},
+        {const_cast<char*>("pushInfoHudState"), const_cast<char*>("([B)V"),
+         reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushInfoHudState)},
+        {const_cast<char*>("pushMusicHudState"), const_cast<char*>("([B)V"),
+         reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushMusicHudState)},
         {const_cast<char*>("pushTabListState"), const_cast<char*>("([B)V"),
          reinterpret_cast<void*>(Java_com_myiui_agent_NativeBridge_pushTabListState)},
         {const_cast<char*>("pushVideoFrame"), const_cast<char*>("([BIII)V"),

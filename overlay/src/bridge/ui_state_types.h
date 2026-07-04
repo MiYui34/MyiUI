@@ -73,7 +73,8 @@ struct HudState {
     uint8_t selected_slot;
     uint8_t gui_scale;
     uint16_t hud_seq;
-    uint16_t reserved16;
+    uint8_t hud_version;
+    uint8_t creative;
     float health;
     float health_max;
     float absorption;
@@ -92,10 +93,54 @@ struct HudState {
     float xp_progress;
     uint16_t layout_reserved;
     HudHotbarSlot slots[9];
+    HudHotbarSlot offhand;
 };
+
+inline constexpr uint8_t kHudStateVersion = 2;
 #pragma pack(pop)
 
 inline constexpr size_t kHudStateSize = sizeof(HudState);
+
+#pragma pack(push, 1)
+struct InfoHudState {
+    uint8_t valid;
+    uint8_t flags;
+    uint16_t info_seq;
+    int32_t block_x;
+    int32_t block_y;
+    int32_t block_z;
+    int16_t ping_ms;
+    int16_t fps;
+    float speed_bps;
+    float yaw;
+    float pitch;
+    char biome[16];
+    char direction[4];
+};
+#pragma pack(pop)
+
+inline constexpr size_t kInfoHudStateSize = sizeof(InfoHudState);
+
+inline constexpr size_t kMusicWaveformBins = 32;
+
+#pragma pack(push, 1)
+struct MusicHudState {
+    uint8_t valid;
+    uint8_t playing;
+    uint8_t paused;
+    uint8_t reserved0;
+    uint16_t music_seq;
+    uint16_t reserved16;
+    uint32_t position_ms;
+    uint32_t duration_ms;
+    char title[48];
+    char artist[48];
+    char cover_url[96];
+    float waveform[kMusicWaveformBins];
+};
+#pragma pack(pop)
+
+inline constexpr size_t kMusicHudStateSize = sizeof(MusicHudState);
 
 inline constexpr size_t kTabPlayerNameLen = 20;
 inline constexpr size_t kTabMaxPlayers = 32;

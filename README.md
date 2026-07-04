@@ -126,3 +126,7 @@ Agent 会自动在后台 `node app.js` 启动服务。
 
 - `quality`：`standard` / `exhigh` / `lossless`（lossless 需 api-enhanced 启用 `ENABLE_FLAC`）
 - 登录态 cookie 明文保存在 `%LOCALAPPDATA%\MyiUI\netease\cookie.txt`，请勿在公共设备使用
+
+## Credits
+
+- [SoarClient-fork](https://github.com/Eatgrapes/SoarClient-fork) (MIT) — ModernHotBar 居中布局、信息 HUD 与音乐波形交互思路参考

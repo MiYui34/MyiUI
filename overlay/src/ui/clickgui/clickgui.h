@@ -16,6 +16,8 @@ bool ShowFps();
 bool HudVisible();
 bool ChatVisible();
 
+void SyncTheme(const int accent[4]);
+
 // ESC keyup 抑制：ClickGui 用 ESC 关闭后，吞掉随后的 ESC up，避免游戏弹出暂停菜单
 void RequestSuppressEscUp();
 bool ConsumeSuppressEscUp();

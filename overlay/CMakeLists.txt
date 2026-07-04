@@ -35,6 +35,7 @@ add_library(myiui-overlay SHARED
     src/bridge/native_bridge.cpp
     src/bridge/native_query.cpp
     src/config/config_loader.cpp
+    src/config/user_settings.cpp
     src/ipc/pipe_client.cpp
     src/ipc/shm_reader.cpp
     src/ui/menu_app.cpp
@@ -65,9 +66,15 @@ add_library(myiui-overlay SHARED
     src/ui/logo_assets.cpp
     src/ui/island/spring_animator.cpp
     src/ui/clickgui/clickgui.cpp
+    src/ui/hud/hud_glass.cpp
+    src/ui/hud/hud_renderer.cpp
+    src/ui/hud/info_widgets.cpp
+    src/ui/hud/now_playing.cpp
     src/ui/island/island_renderer.cpp
     src/ui/music/cover_loader.cpp
     src/ui/music/music_panel.cpp
+    src/ui/theme/material_you.cpp
+    src/ui/theme/theme_runtime.cpp
     src/render/gl_loader.cpp
     ../shared/logo_wic.cpp
     ${IMGUI_SOURCES}

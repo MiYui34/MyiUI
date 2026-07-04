@@ -27,6 +27,7 @@ struct CoverEntry {
     int w = 0;
     int h = 0;
     long long lastUsed = 0;  // 帧计数，用于 LRU 淘汰
+    std::vector<uint8_t> rgba;
     bool valid() const { return tex != 0 && w > 0 && h > 0; }
 };
 
@@ -226,6 +227,7 @@ void CoverProcessPending() {
         UploadTexture(pc.rgba, pc.w, pc.h, entry.tex);
         entry.w = pc.w;
         entry.h = pc.h;
+        entry.rgba = std::move(pc.rgba);
         entry.lastUsed = g_frameCounter;
     }
 }
@@ -281,6 +283,18 @@ CoverTexture CoverFromBase64Png(const std::string& b64) {
     out.w = w;
     out.h = h;
     return out;
+}
+
+const uint8_t* CoverLoaderSampleRgba(const char* url, int& outW, int& outH) {
+    outW = 0;
+    outH = 0;
+    if (!url || !url[0]) return nullptr;
+    std::lock_guard<std::mutex> lock(g_cacheMutex);
+    auto it = g_cache.find(url);
+    if (it == g_cache.end() || it->second.rgba.empty()) return nullptr;
+    outW = it->second.w;
+    outH = it->second.h;
+    return it->second.rgba.data();
 }
 
 void CoverShutdown() {

@@ -21,6 +21,10 @@ public final class NativeBridge {
 
     public static native void pushHudState(byte[] packed);
 
+    public static native void pushInfoHudState(byte[] packed);
+
+    public static native void pushMusicHudState(byte[] packed);
+
     public static native void pushTabListState(byte[] packed);
 
     public static native void pushVideoFrame(byte[] rgba, int width, int height, int frameIndex);

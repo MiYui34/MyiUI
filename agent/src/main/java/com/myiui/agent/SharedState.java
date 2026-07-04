@@ -1,7 +1,7 @@
 package com.myiui.agent;
 
 public final class SharedState {
-    private static final int HUD_STATE_SIZE = 108;
+    private static final int HUD_STATE_SIZE = 114;
     private static final int MAX_FRAME_BYTES = 1920 * 1080 * 4;
 
     private static volatile boolean menuActive;
@@ -38,7 +38,18 @@ public final class SharedState {
             }
         }
         if (screen != null && isClientInWorld() && !ClassUtil.isTitleScreenInstance(screen)) {
-            broadcastInGameIfNeeded();
+            if (isTransientInGameScreen(screen)) {
+                return;
+            }
+            byte kind = ScreenKind.SUB_MENU;
+            if (kind != currentScreenKind || menuActive) {
+                menuActive = false;
+                currentScreenKind = kind;
+                screenSeq++;
+                writeUiState(kind, false, screenSeq);
+                AgentLog.info("broadcast in-game screen seq=" + screenSeq + " kind=SubMenu class="
+                        + screen.getClass().getName());
+            }
             return;
         }
         byte kind = ScreenKind.classify(screen);
@@ -151,6 +162,17 @@ public final class SharedState {
 
     public static synchronized void writeTabListState(PlayerListBridge.TabSnapshot snap) {
         NativeBridge.pushTabListState(BridgePacker.packTabList(snap, ++tabSeq));
+    }
+
+    private static int infoSeq = 0;
+    private static int musicSeq = 0;
+
+    public static synchronized void writeInfoHudState(InfoHudBridge.InfoSnapshot snap) {
+        NativeBridge.pushInfoHudState(BridgePacker.packInfo(snap, ++infoSeq));
+    }
+
+    public static synchronized void writeMusicHudState(MusicHudBridge.MusicSnapshot snap) {
+        NativeBridge.pushMusicHudState(BridgePacker.packMusic(snap, ++musicSeq));
     }
 
     private static void clearTabListState() {
@@ -327,6 +349,17 @@ public final class SharedState {
         scheduleMenuSync(client);
     }
 
+    private static boolean isTransientInGameScreen(Object screen) {
+        if (screen == null) {
+            return false;
+        }
+        String name = screen.getClass().getName();
+        return name.contains("ProgressScreen") || name.contains("class_433")
+                || name.contains("DownloadingTerrainScreen") || name.contains("class_434")
+                || name.contains("LevelLoadingScreen") || name.contains("LevelLoadingScreen")
+                || name.contains("class_424");
+    }
+
     private static boolean isTransientNetworkScreen(Object screen) {
         String name = screen.getClass().getName();
         return name.contains("ConnectScreen") || name.contains("class_412") || name.contains("class_435")
@@ -358,7 +391,8 @@ public final class SharedState {
             return;
         }
         if (ReflectUtil.getWorld(client) != null) {
-            AgentLog.info("Sub-screen closed: in-game, skip menu recovery");
+            AgentLog.info("Sub-screen closed: in-game, rebroadcast InGame");
+            broadcastInGameIfNeeded();
             return;
         }
         AgentLog.info("Sub-screen closed: " + closedScreen.getClass().getSimpleName());

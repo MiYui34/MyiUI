@@ -18,6 +18,8 @@ public final class IslandBridge {
             IslandManager.removeExpired();
             int fps = readFps(client);
             SharedState.writeIslandState(IslandManager.buildSnapshot(fps));
+            MusicHudBridge.onClientTick();
+            pushHudIfWorldVisible(client);
         } catch (Throwable t) {
             AgentLog.error("IslandBridge.onClientTick failed", t);
         }
@@ -37,5 +39,22 @@ public final class IslandBridge {
             }
         }
         return 0;
+    }
+
+    private static void pushHudIfWorldVisible(Object client) {
+        try {
+            if (ReflectUtil.getCurrentScreen(client) != null) {
+                return;
+            }
+            Object player = ReflectUtil.getField(client, "player", "field_1724");
+            if (player == null) {
+                player = ReflectUtil.getField(client, "field_1724", "player");
+            }
+            if (player == null) {
+                return;
+            }
+            SharedState.writeHudState(client, player, HudBridge.snapshotFlags(client, player));
+        } catch (Throwable ignored) {
+        }
     }
 }

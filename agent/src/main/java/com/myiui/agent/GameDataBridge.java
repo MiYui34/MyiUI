@@ -142,6 +142,9 @@ public final class GameDataBridge {
             SharedState.setOverlayAck(false);
             return "OK";
         }
+        if (cmd.startsWith("UI_FLAGS:")) {
+            return OverlayUiBridge.applyFlags(cmd.substring("UI_FLAGS:".length())) ? "OK" : "ERR ui_flags";
+        }
         if (cmd.startsWith("SET_OPTION:")) {
             String rest = cmd.substring("SET_OPTION:".length());
             int eq = rest.indexOf('=');

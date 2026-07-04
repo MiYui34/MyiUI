@@ -29,6 +29,16 @@ void NativeState::PushHud(const myiui::shared::HudState& state) {
     hud_ = state;
 }
 
+void NativeState::PushInfoHud(const myiui::shared::InfoHudState& state) {
+    std::lock_guard lock(mutex_);
+    info_ = state;
+}
+
+void NativeState::PushMusicHud(const myiui::shared::MusicHudState& state) {
+    std::lock_guard lock(mutex_);
+    music_ = state;
+}
+
 void NativeState::PushTabList(const myiui::shared::TabListState& state) {
     std::lock_guard lock(mutex_);
     tab_list_ = state;
@@ -67,6 +77,24 @@ bool NativeState::ReadHud(myiui::shared::HudState& out) const {
         return false;
     }
     out = hud_;
+    return true;
+}
+
+bool NativeState::ReadInfoHud(myiui::shared::InfoHudState& out) const {
+    std::lock_guard lock(mutex_);
+    if (!info_.valid) {
+        return false;
+    }
+    out = info_;
+    return true;
+}
+
+bool NativeState::ReadMusicHud(myiui::shared::MusicHudState& out) const {
+    std::lock_guard lock(mutex_);
+    if (!music_.valid) {
+        return false;
+    }
+    out = music_;
     return true;
 }
 
