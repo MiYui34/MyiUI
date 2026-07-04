@@ -50,6 +50,7 @@ add_library(myiui-overlay SHARED
     src/ui/fonts.cpp
     src/ui/screen_transition.cpp
     src/ui/widgets/glass_button.cpp
+    src/ui/widgets/parallax_card.cpp
     src/ui/widgets/screen_shell.cpp
     src/ui/widgets/nav_list.cpp
     src/ui/widgets/toast.cpp
@@ -68,8 +69,10 @@ add_library(myiui-overlay SHARED
     src/ui/clickgui/clickgui.cpp
     src/ui/hud/hud_glass.cpp
     src/ui/hud/hud_renderer.cpp
-    src/ui/hud/info_widgets.cpp
+    src/ui/hud/immersive_lyrics.cpp
+    src/ui/hud/layout_editor.cpp
     src/ui/hud/now_playing.cpp
+    src/ui/hud/now_playing_layout.cpp
     src/ui/island/island_renderer.cpp
     src/ui/music/cover_loader.cpp
     src/ui/music/music_panel.cpp

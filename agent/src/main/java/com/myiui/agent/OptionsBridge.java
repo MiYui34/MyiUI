@@ -417,12 +417,42 @@ public final class OptionsBridge {
     private static Object resolveOptionHolder(Object options, OptionRef ref) {
         try {
             Method getter = ReflectUtil.findInstanceMethod(options.getClass(), ref.getterNamed(), ref.getterIntermediary());
-            return getter.invoke(options);
+            Object holder = getter.invoke(options);
+            if (holder != null) {
+                return holder;
+            }
         } catch (Throwable ignored) {
         }
         try {
-            return ReflectUtil.getField(options, ref.fieldNamed(), ref.fieldIntermediary());
+            Object holder = ReflectUtil.getField(options, ref.fieldNamed(), ref.fieldIntermediary());
+            if (holder != null) {
+                return holder;
+            }
         } catch (Throwable ignored) {
+        }
+        // Runtime fallback across versions: locate the SimpleOption-typed field whose name matches
+        // any known candidate, independent of exact getter/field intermediary numbering.
+        return scanSimpleOptionByName(options, ref.fieldNamed(), ref.fieldIntermediary(), ref.getterNamed());
+    }
+
+    private static Object scanSimpleOptionByName(Object options, String... nameCandidates) {
+        Class<?> clazz = options.getClass();
+        while (clazz != null && clazz != Object.class) {
+            for (Field f : clazz.getDeclaredFields()) {
+                if (!isSimpleOption(f.getType())) {
+                    continue;
+                }
+                for (String candidate : nameCandidates) {
+                    if (candidate != null && candidate.equals(f.getName())) {
+                        try {
+                            f.setAccessible(true);
+                            return f.get(options);
+                        } catch (ReflectiveOperationException ignored) {
+                        }
+                    }
+                }
+            }
+            clazz = clazz.getSuperclass();
         }
         return null;
     }

@@ -5,8 +5,24 @@
 #include "ui/fonts.h"
 #include "ui/screen_id.h"
 #include "ui/ui_scale.h"
-#include "ui/widgets/nav_list.h"
+#include "ui/widgets/parallax_card.h"
 #include "ui/widgets/screen_shell.h"
+
+namespace {
+
+const char* OptionsNavDesc(const std::string& id) {
+    if (id == "options_video") return "分辨率、画质与性能";
+    if (id == "options_sound") return "音量与音频设备";
+    if (id == "options_controls") return "键位与鼠标设置";
+    if (id == "options_language") return "界面语言";
+    if (id == "options_chat") return "聊天与 HUD 显示";
+    if (id == "options_skin") return "皮肤与模型";
+    if (id == "options_accessibility") return "辅助功能";
+    if (id == "options_credits") return "制作人员";
+    return "进入设置";
+}
+
+}  // namespace
 
 void RenderOptionsHubScreen(MenuRenderContext& ctx, ScreenRouter& router) {
     if (ctx.state.show_manager) return;
@@ -25,31 +41,40 @@ void RenderOptionsHubScreen(MenuRenderContext& ctx, ScreenRouter& router) {
         return;
     }
 
-    const float rowH = Px(ctx.cfg.components.nav_row_h, scale);
-    const float gap = Px(8.f, scale);
-    const float rowW = layout.content_size.x;
+    const float cardH = Px(100.f, scale);
+    const float gap = Px(15.f, scale);
+    const float hoverMargin =
+        myiui::ui::widgets::ParallaxCardHoverMargin(ImVec2(layout.content_size.x, cardH));
+    const float rowW = layout.content_size.x - hoverMargin * 2.f;
 
     if (!BeginScreenContentScroll("opt_hub_scroll", layout)) {
         return;
     }
-    float y = 0.f;
-    int idx = 0;
-    for (const auto& item : ctx.state.options_nav) {
-        ImGui::SetCursorPos(ImVec2(0.f, y));
-        const ImVec2 rowPos = ImGui::GetCursorScreenPos();
-        float hover = ctx.state.hover_anim[12 + idx];
-        if (NavListRow((std::string("nav_") + item.id).c_str(), rowPos, ImVec2(rowW, rowH), item.label.c_str(),
-                       ctx.cfg, hover, scale) &&
-            !router.IsTransitioning()) {
-            if (item.id == "video" || item.screen == ScreenId::OptionsVideo) {
-                MenuAppRunPipeAction(ctx.state, "OPEN_VIDEO_OPTIONS", false);
-            } else {
-                router.Push(item.screen);
+    {
+        const myiui::ui::widgets::ParallaxCardClipGuard clipGuard;
+        float y = hoverMargin;
+        int idx = 0;
+        for (const auto& item : ctx.state.options_nav) {
+            ImGui::SetCursorPos(ImVec2(hoverMargin, y));
+            const ImVec2 cardPos = ImGui::GetCursorScreenPos();
+            const ImVec2 cardSize(rowW, cardH);
+            const std::string cardId = std::string("opt_nav_") + item.id;
+
+            if (myiui::ui::widgets::DrawParallaxCard(cardId.c_str(), cardSize, cardPos, ctx.cfg.theme,
+                                                    item.label.c_str(), OptionsNavDesc(item.id)) &&
+                !router.IsTransitioning()) {
+                if (item.id == "options_video" || item.screen == ScreenId::OptionsVideo) {
+                    MenuAppRunPipeAction(ctx.state, "OPEN_VIDEO_OPTIONS", false);
+                } else {
+                    router.Push(item.screen);
+                }
             }
+
+            y += cardSize.y + gap;
+            ++idx;
+            (void)idx;
         }
-        ctx.state.hover_anim[12 + idx] = hover;
-        y += rowH + gap;
-        ++idx;
+        ImGui::Dummy(ImVec2(0.f, hoverMargin));
     }
     EndScreenContentScroll();
 }

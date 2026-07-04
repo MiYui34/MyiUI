@@ -72,18 +72,6 @@ InfoAnchor ParseAnchor(const std::string& json, const char* section, InfoAnchor 
     return InfoAnchor::TopLeft;
 }
 
-void ParseInfoWidget(const std::string& json, const char* section, InfoWidgetSettings& out) {
-    const std::string sec = std::string("\"") + section + "\"";
-    const auto secPos = json.find(sec);
-    if (secPos == std::string::npos) return;
-    const auto end = json.find('}', secPos);
-    const std::string block = json.substr(secPos, end == std::string::npos ? std::string::npos : end - secPos);
-    out.enabled = ParseBool(block, "enabled", out.enabled);
-    out.x = ParseFloat(block, "x", out.x);
-    out.y = ParseFloat(block, "y", out.y);
-    out.anchor = ParseAnchor(json, section, out.anchor);
-}
-
 void MigrateLegacyUiSettings() {
     std::ifstream in(LegacyUiSettingsPath());
     if (!in) return;
@@ -110,11 +98,6 @@ const char* AnchorName(InfoAnchor a) {
     }
 }
 
-void WriteInfoWidget(std::ostringstream& out, const char* key, const InfoWidgetSettings& w) {
-    out << "    \"" << key << "\": { \"enabled\": " << (w.enabled ? "true" : "false")
-        << ", \"anchor\": \"" << AnchorName(w.anchor) << "\", \"x\": " << w.x << ", \"y\": " << w.y << " },\n";
-}
-
 void SyncAgentUiFlags() {
     const auto& s = g_settings;
     char buf[64];
@@ -129,7 +112,6 @@ const UserSettings& GetUserSettingsConst() { return g_settings; }
 
 void UserSettingsLoad() {
     g_settings = UserSettings{};
-    g_settings.info_fps.enabled = false;
     std::ifstream in(SettingsPath());
     if (!in) {
         MigrateLegacyUiSettings();
@@ -155,12 +137,6 @@ void UserSettingsLoad() {
     }
     g_settings.theme.material_you = ParseBool(json, "material_you", g_settings.theme.material_you);
 
-    ParseInfoWidget(json, "info_coords", g_settings.info_coords);
-    ParseInfoWidget(json, "info_ping", g_settings.info_ping);
-    ParseInfoWidget(json, "info_speed", g_settings.info_speed);
-    ParseInfoWidget(json, "info_fps", g_settings.info_fps);
-    ParseInfoWidget(json, "info_fps", g_settings.info_fps);
-
     const auto npPos = json.find("\"now_playing\"");
     if (npPos != std::string::npos) {
         const std::string block = json.substr(npPos, 320);
@@ -168,17 +144,21 @@ void UserSettingsLoad() {
         g_settings.now_playing.show_waveform = ParseBool(block, "show_waveform", true);
         g_settings.now_playing.x = ParseFloat(block, "x", g_settings.now_playing.x);
         g_settings.now_playing.y = ParseFloat(block, "y", g_settings.now_playing.y);
+        g_settings.now_playing.scale = ParseFloat(block, "scale", g_settings.now_playing.scale);
+        g_settings.now_playing.immersive_lyrics = ParseBool(block, "immersive_lyrics", false);
         g_settings.now_playing.anchor = ParseAnchor(json, "now_playing", g_settings.now_playing.anchor);
     }
 
     const auto iPos = json.find("\"island\"");
     if (iPos != std::string::npos) {
-        const std::string block = json.substr(iPos, 256);
+        const std::string block = json.substr(iPos, 320);
         g_settings.island.visible = ParseBool(block, "visible", true);
         g_settings.island.scale = ParseFloat(block, "scale", 3.f);
         g_settings.island.opacity = ParseFloat(block, "opacity", 0.5f);
         g_settings.island.blur = ParseBool(block, "blur", false);
         g_settings.island.show_fps = ParseBool(block, "show_fps", true);
+        g_settings.island.offset_x = ParseFloat(block, "offset_x", 0.f);
+        g_settings.island.offset_y = ParseFloat(block, "offset_y", 0.f);
     }
 
     g_settings.hud_visible = ParseBool(json, "visible", ParseBool(json, "hud_visible", true));
@@ -190,6 +170,7 @@ void UserSettingsLoad() {
         const auto cPos = json.find("\"chat\"");
         g_settings.chat_visible = ParseBool(json.substr(cPos, 64), "visible", g_settings.chat_visible);
     }
+    g_settings.layout_editor_enabled = ParseBool(json, "layout_editor", false);
 
     MigrateLegacyUiSettings();
     SyncAgentUiFlags();
@@ -212,20 +193,19 @@ void UserSettingsSave() {
     out << "    \"ui_brightness\": " << g_settings.theme.ui_brightness << "\n";
     out << "  },\n";
     out << "  \"modules\": {\n";
-    WriteInfoWidget(out, "info_coords", g_settings.info_coords);
-    WriteInfoWidget(out, "info_ping", g_settings.info_ping);
-    WriteInfoWidget(out, "info_speed", g_settings.info_speed);
-    WriteInfoWidget(out, "info_fps", g_settings.info_fps);
-    WriteInfoWidget(out, "info_fps", g_settings.info_fps);
     out << "    \"now_playing\": { \"enabled\": " << (g_settings.now_playing.enabled ? "true" : "false")
         << ", \"anchor\": \"" << AnchorName(g_settings.now_playing.anchor) << "\", \"x\": "
-        << g_settings.now_playing.x << ", \"y\": " << g_settings.now_playing.y
-        << ", \"show_waveform\": " << (g_settings.now_playing.show_waveform ? "true" : "false") << " }\n";
+        << g_settings.now_playing.x << ", \"y\": " << g_settings.now_playing.y << ", \"scale\": "
+        << g_settings.now_playing.scale << ", \"show_waveform\": "
+        << (g_settings.now_playing.show_waveform ? "true" : "false") << ", \"immersive_lyrics\": "
+        << (g_settings.now_playing.immersive_lyrics ? "true" : "false") << " }\n";
     out << "  },\n";
     out << "  \"island\": { \"visible\": " << (g_settings.island.visible ? "true" : "false")
         << ", \"scale\": " << g_settings.island.scale << ", \"opacity\": " << g_settings.island.opacity
         << ", \"blur\": " << (g_settings.island.blur ? "true" : "false")
-        << ", \"show_fps\": " << (g_settings.island.show_fps ? "true" : "false") << " },\n";
+        << ", \"show_fps\": " << (g_settings.island.show_fps ? "true" : "false") << ", \"offset_x\": "
+        << g_settings.island.offset_x << ", \"offset_y\": " << g_settings.island.offset_y << " },\n";
+    out << "  \"layout_editor\": " << (g_settings.layout_editor_enabled ? "true" : "false") << ",\n";
     out << "  \"hud\": { \"visible\": " << (g_settings.hud_visible ? "true" : "false") << " },\n";
     out << "  \"chat\": { \"visible\": " << (g_settings.chat_visible ? "true" : "false") << " }\n";
     out << "}\n";

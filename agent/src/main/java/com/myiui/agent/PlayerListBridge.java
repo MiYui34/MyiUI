@@ -1,5 +1,7 @@
 package com.myiui.agent;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -299,37 +301,26 @@ public final class PlayerListBridge {
     }
 
     private static Object getNetworkHandler(Object client) {
-        for (String[] method : new String[][]{
-                {"getNetworkHandler", "method_1562"},
-                {"getConnection", "method_1562"},
-        }) {
-            try {
-                Method m = ReflectUtil.findInstanceMethod(client.getClass(), method[0], method[1]);
-                Object handler = m.invoke(client);
-                if (handler != null) {
-                    return handler;
-                }
-            } catch (ReflectiveOperationException ignored) {
+        try {
+            Method m = ReflectUtil.findInstanceMethod(client.getClass(), Mappings.MC_GET_NETWORK_HANDLER);
+            Object handler = m.invoke(client);
+            if (handler != null) {
+                return handler;
             }
+        } catch (ReflectiveOperationException ignored) {
         }
         return null;
     }
 
     @SuppressWarnings("unchecked")
     private static Collection<?> getPlayerList(Object handler) {
-        for (String[] method : new String[][]{
-                {"getListedPlayerListEntries", "method_45732"},
-                {"getPlayerList", "method_2880"},
-                {"getListedPlayers", "method_45732"},
-        }) {
-            try {
-                Method m = ReflectUtil.findInstanceMethod(handler.getClass(), method[0], method[1]);
-                Object result = m.invoke(handler);
-                if (result instanceof Collection<?> collection) {
-                    return collection;
-                }
-            } catch (ReflectiveOperationException ignored) {
+        try {
+            Method m = ReflectUtil.findInstanceMethod(handler.getClass(), Mappings.NET_LISTED_ENTRIES);
+            Object result = m.invoke(handler);
+            if (result instanceof Collection<?> collection) {
+                return collection;
             }
+        } catch (ReflectiveOperationException ignored) {
         }
         for (Field field : handler.getClass().getDeclaredFields()) {
             try {

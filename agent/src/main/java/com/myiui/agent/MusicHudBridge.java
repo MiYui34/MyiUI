@@ -1,5 +1,6 @@
 package com.myiui.agent;
 
+import com.myiui.agent.netease.LyricManager;
 import com.myiui.agent.netease.MusicPlayer;
 
 /** Pushes now-playing + waveform state to overlay HUD. */
@@ -33,6 +34,9 @@ public final class MusicHudBridge {
         snap.positionMs = MusicPlayer.positionMs();
         snap.durationMs = MusicPlayer.durationMs();
         snap.waveform = MusicPlayer.copyWaveform();
+        snap.lyricCurrent = LyricManager.currentLine(snap.positionMs);
+        snap.lyricNext = LyricManager.nextLine(snap.positionMs);
+        snap.lyricProgress = LyricManager.lineProgress(snap.positionMs);
         return snap;
     }
 
@@ -45,5 +49,8 @@ public final class MusicHudBridge {
         String artist = "";
         String coverUrl = "";
         float[] waveform = new float[WAVEFORM_BINS];
+        String lyricCurrent = "";
+        String lyricNext = "";
+        float lyricProgress;
     }
 }

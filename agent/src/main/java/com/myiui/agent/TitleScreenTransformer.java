@@ -13,6 +13,8 @@ import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 
@@ -66,24 +68,24 @@ public final class TitleScreenTransformer implements ClassFileTransformer {
     static boolean isInitMethod(MethodNode method) {
         if (!"()V".equals(method.desc)) return false;
         if ("<init>".equals(method.name) || "<clinit>".equals(method.name)) return false;
-        return "init".equals(method.name) || "method_25426".equals(method.name);
+        return Mappings.matchesAny(Mappings.TITLE_INIT_METHOD, method.name);
     }
 
     static boolean isOnDisplayedMethod(MethodNode method) {
         if (!"()V".equals(method.desc)) {
             return false;
         }
-        return "onDisplayed".equals(method.name) || "method_49589".equals(method.name);
+        return Mappings.matchesAny(Mappings.TITLE_ON_DISPLAYED_METHOD, method.name);
     }
 
     static boolean isRenderMethod(MethodNode method) {
         if (method.desc == null || !method.desc.endsWith("IIF)V") || !method.desc.startsWith("(L")) {
             return false;
         }
-        if ("renderBackground".equals(method.name) || "method_25420".equals(method.name)) {
+        if (Mappings.matchesAny(Mappings.SCREEN_RENDER_BACKGROUND_METHOD, method.name)) {
             return false;
         }
-        return "render".equals(method.name) || "method_25394".equals(method.name);
+        return Mappings.matchesAny(Mappings.TITLE_RENDER_METHOD, method.name);
     }
 
     private static void injectInitTail(MethodNode method) {

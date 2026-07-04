@@ -1,6 +1,7 @@
 /build/
 /agent/build/
 /agent/.gradle/
+/dist/
 /overlay/third_party/*.zip
 *.user
 *.suo

@@ -33,9 +33,18 @@ bool AcquireJvmContext(JNIEnv* env) {
     jvm::SetJvm(vm);
 
     if (jvm::GetClassLoader() == nullptr) {
+        // Fallback chain (robust across MC/Fabric thread-naming changes):
+        //   exact "Render thread" -> exact "Client thread" -> any thread whose name contains
+        //   "render" -> the current (render) thread's context ClassLoader.
         jobject classLoader = jvm::jni_func::GetClassLoaderFromThreadName(env, "Render thread");
         if (!classLoader) {
             classLoader = jvm::jni_func::GetClassLoaderFromThreadName(env, "Client thread");
+        }
+        if (!classLoader) {
+            classLoader = jvm::jni_func::GetClassLoaderFromThreadNameContains(env, "render");
+        }
+        if (!classLoader) {
+            classLoader = jvm::jni_func::GetClassLoaderFromCurrentThread(env);
         }
         if (!classLoader) {
             jvm::SpikeLog(L"[hook] game ClassLoader not found");

@@ -33,7 +33,35 @@ public final class InfoHudBridge {
         return snap;
     }
 
+    /** blocks per second; uses entity velocity (blocks/tick) × 20. */
     private static float readSpeed(Object player) {
+        float fromVelocity = readSpeedFromVelocity(player);
+        if (fromVelocity >= 0f) {
+            return fromVelocity;
+        }
+        return readSpeedFromPositionDelta(player);
+    }
+
+    private static float readSpeedFromVelocity(Object player) {
+        try {
+            Object velocity = invokeObject(player, "getVelocity", "method_18798");
+            if (velocity == null) {
+                return -1f;
+            }
+            Object length = invokeObject(velocity, "length", "method_1033");
+            if (length instanceof Number n) {
+                return (float) (n.doubleValue() * 20.0);
+            }
+            double vx = readDouble(velocity, "getX", "method_10216");
+            double vy = readDouble(velocity, "getY", "method_10214");
+            double vz = readDouble(velocity, "getZ", "method_10215");
+            return (float) (Math.sqrt(vx * vx + vy * vy + vz * vz) * 20.0);
+        } catch (Throwable ignored) {
+            return -1f;
+        }
+    }
+
+    private static float readSpeedFromPositionDelta(Object player) {
         double x = readDouble(player, "getX", "method_23317");
         double y = readDouble(player, "getY", "method_23318");
         double z = readDouble(player, "getZ", "method_23321");
@@ -137,6 +165,9 @@ public final class InfoHudBridge {
 
     private static Object invokeObject(Object target, String named, String intermediary, Class<?>... params) {
         try {
+            if (params.length == 0) {
+                return ReflectUtil.findInstanceMethod(target.getClass(), named, intermediary).invoke(target);
+            }
             return ReflectUtil.findInstanceMethod(target.getClass(), named, intermediary, params).invoke(target, (Object[]) null);
         } catch (Throwable ignored) {
             try {

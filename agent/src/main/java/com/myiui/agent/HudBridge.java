@@ -1,5 +1,7 @@
 package com.myiui.agent;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.reflect.Method;
 
 /** Collects in-game HUD stats and writes them into shared memory for the overlay DLL. */
@@ -208,33 +210,27 @@ public final class HudBridge {
     private static int readSelectedSlot(Object client, Object player) {
         Object inventory = getInventory(player);
         if (inventory != null) {
-            for (String[] method : new String[][]{
-                    {"getSelectedSlot", "method_67532"},
-                    {"getSelectedSlot", "method_6751"},
-                    {"getSelectedSlot", "method_5439"},
-                    {"getSelectedSlot", "getSelectedSlot"},
-            }) {
-                try {
-                    Method m = ReflectUtil.findInstanceMethod(inventory.getClass(), method[0], method[1]);
-                    Object value = m.invoke(inventory);
-                    if (value instanceof Number n) {
-                        int slot = n.intValue();
-                        if (slot >= 0 && slot <= 8) {
-                            return slot;
-                        }
+            // Most version-variable member: method_67532 (1.21.5+) vs method_6751/method_5439 (older).
+            try {
+                Method m = ReflectUtil.findInstanceMethod(inventory.getClass(), Mappings.INV_GET_SELECTED_SLOT);
+                Object value = m.invoke(inventory);
+                if (value instanceof Number n) {
+                    int slot = n.intValue();
+                    if (slot >= 0 && slot <= 8) {
+                        return slot;
                     }
-                } catch (ReflectiveOperationException ignored) {
                 }
+            } catch (ReflectiveOperationException ignored) {
             }
-            for (String[] field : new String[][]{
-                    {"selectedSlot", "field_7545"},
-                    {"selectedSlot", "field_7544"},
-                    {"field_7545", "selectedSlot"},
-            }) {
-                int slot = readInt(inventory, field[0], field[1]);
-                if (slot >= 0 && slot <= 8) {
-                    return slot;
+            try {
+                Object value = ReflectUtil.getField(inventory, Mappings.INV_SELECTED_SLOT_FIELD);
+                if (value instanceof Number n) {
+                    int slot = n.intValue();
+                    if (slot >= 0 && slot <= 8) {
+                        return slot;
+                    }
                 }
+            } catch (ReflectiveOperationException ignored) {
             }
         }
         return 0;

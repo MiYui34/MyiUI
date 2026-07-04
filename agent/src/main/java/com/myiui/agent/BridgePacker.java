@@ -8,7 +8,7 @@ import java.util.List;
 final class BridgePacker {
     static final int HUD_STATE_SIZE = 114;
     static final int INFO_HUD_STATE_SIZE = 64;
-    static final int MUSIC_HUD_STATE_SIZE = 336;
+    static final int MUSIC_HUD_STATE_SIZE = 596;
     private static final int TAB_LIST_STATE_SIZE = 824;
 
     private BridgePacker() {}
@@ -93,6 +93,9 @@ final class BridgePacker {
             float v = i < snap.waveform.length ? snap.waveform[i] : 0f;
             buf.putFloat(v);
         }
+        writeFixed(buf, snap.lyricCurrent, 128);
+        writeFixed(buf, snap.lyricNext, 128);
+        buf.putFloat(snap.lyricProgress);
         while (buf.position() < MUSIC_HUD_STATE_SIZE) {
             buf.put((byte) 0);
         }

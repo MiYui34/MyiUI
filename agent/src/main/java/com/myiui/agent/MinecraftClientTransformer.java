@@ -9,6 +9,8 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 
@@ -44,7 +46,14 @@ public final class MinecraftClientTransformer implements ClassFileTransformer {
             }
 
             if (hooked == 0) {
-                AgentLog.error("MinecraftClient " + className + ": setScreen not matched");
+                AgentLog.error("MinecraftClient " + className + ": setScreen NOT matched; dumping methods:");
+                StringBuilder sb = new StringBuilder("  methods: ");
+                int n = 0;
+                for (MethodNode m : node.methods) {
+                    sb.append(m.name).append(m.desc).append(' ');
+                    if (++n >= 80) break;
+                }
+                AgentLog.error(sb.toString());
                 return null;
             }
 
@@ -61,25 +70,23 @@ public final class MinecraftClientTransformer implements ClassFileTransformer {
 
     static boolean isSetScreenMethod(MethodNode method) {
         if (method.desc == null) return false;
-        if ("setScreen".equals(method.name) || "method_1507".equals(method.name)) {
+        if (Mappings.matchesAny(Mappings.MC_SET_SCREEN_METHOD, method.name)) {
             return method.desc.startsWith("(L") && method.desc.endsWith(")V");
         }
         return false;
     }
 
     static boolean isTickMethod(MethodNode method) {
-        return "()V".equals(method.desc) && ("tick".equals(method.name) || "method_1574".equals(method.name));
+        return "()V".equals(method.desc) && Mappings.matchesAny(Mappings.MC_TICK_METHOD, method.name);
     }
 
     static boolean isRenderMethod(MethodNode method) {
-        return "(Z)V".equals(method.desc) && ("render".equals(method.name) || "method_1523".equals(method.name));
+        return "(Z)V".equals(method.desc) && Mappings.matchesAny(Mappings.MC_RENDER_METHOD, method.name);
     }
 
     static boolean isDisconnectMethod(MethodNode method) {
-        if (!"disconnect".equals(method.name)
-                && !"method_18099".equals(method.name)
-                && !"method_56134".equals(method.name)
-                && !"method_18096".equals(method.name)) {
+        // 1.21<=x<=1.21.5 use method_18099/method_56134; 1.21.6+ consolidated onto method_18096.
+        if (!Mappings.matchesAny(Mappings.MC_DISCONNECT_METHOD, method.name)) {
             return false;
         }
         return "()V".equals(method.desc)

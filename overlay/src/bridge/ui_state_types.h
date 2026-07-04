@@ -137,6 +137,9 @@ struct MusicHudState {
     char artist[48];
     char cover_url[96];
     float waveform[kMusicWaveformBins];
+    char lyric_current[128];
+    char lyric_next[128];
+    float lyric_progress;
 };
 #pragma pack(pop)
 

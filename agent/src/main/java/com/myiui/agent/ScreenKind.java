@@ -18,8 +18,9 @@ public final class ScreenKind {
             return MAIN_MENU;
         }
         String name = screen.getClass().getName();
+        // VideoOptionsScreen is class_446. (class_526 is SelectWorldScreen — was wrongly matched here.)
         if (name.contains("SodiumOptionsGUI") || name.contains("VideoOptionsScreen")
-                || name.contains("class_526")) {
+                || name.contains("class_446")) {
             return VIDEO_SETTINGS;
         }
         return SUB_MENU;

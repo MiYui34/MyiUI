@@ -13,6 +13,8 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
@@ -49,9 +51,13 @@ public final class InGameHudTransformer implements ClassFileTransformer {
                 }
             }
 
-            if (hookedRender == 0 && skippedParts == 0) {
-                AgentLog.error("InGameHud " + className + ": no hook targets matched");
-                return null;
+            if (hookedRender == 0) {
+                AgentLog.error("InGameHud " + className + ": main render hook NOT matched (skip=" + skippedParts
+                        + "); dumping methods for mapping diagnosis:");
+                dumpMethods(node);
+                if (skippedParts == 0) {
+                    return null;
+                }
             }
 
             SafeClassWriter writer = new SafeClassWriter(reader, ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS, loader);
@@ -69,29 +75,40 @@ public final class InGameHudTransformer implements ClassFileTransformer {
         if (method.desc == null || !method.desc.startsWith("(L") || !method.desc.endsWith(")V")) {
             return false;
         }
-        if (!"render".equals(method.name) && !"method_1753".equals(method.name)) {
+        if (!Mappings.matchesAny(Mappings.HUD_RENDER_METHOD, method.name)) {
             return false;
         }
+        // render(DrawContext, RenderTickCounter)V or the legacy render(DrawContext, ..., float)V.
         return method.desc.endsWith("F)V")
-                || method.desc.contains("RenderTickCounter")
-                || method.desc.contains("class_9779");
+                || Mappings.descContainsAny(Mappings.RENDER_TICK_COUNTER_MARKERS, method.desc);
     }
 
     static boolean shouldSkipHudPart(MethodNode method) {
         if (method.desc == null || !method.desc.endsWith(")V")) {
             return false;
         }
-        String name = method.name;
-        return "renderStatusEffectOverlay".equals(name) || "method_1769".equals(name)
-                || "renderPlayerList".equals(name) || "method_55804".equals(name);
+        // renderStatusEffectOverlay exists only on <=1.21.1 (HUD refactored afterward); skipping it
+        // there prevents vanilla status-effect icons overlapping our overlay. On newer versions the
+        // method is absent and we simply don't skip (harmless cosmetic). renderPlayerList is stable.
+        return Mappings.matchesAny(Mappings.HUD_RENDER_STATUS_EFFECTS_METHOD, method.name)
+                || Mappings.matchesAny(Mappings.HUD_RENDER_PLAYER_LIST_METHOD, method.name);
     }
 
     static boolean isConditionalChat(MethodNode method) {
         if (method.desc == null || !method.desc.endsWith(")V")) {
             return false;
         }
-        String name = method.name;
-        return "renderChat".equals(name) || "method_1803".equals(name);
+        return Mappings.matchesAny(Mappings.HUD_RENDER_CHAT_METHOD, method.name);
+    }
+
+    private static void dumpMethods(ClassNode node) {
+        StringBuilder sb = new StringBuilder("  methods: ");
+        int n = 0;
+        for (MethodNode m : node.methods) {
+            sb.append(m.name).append(m.desc).append(' ');
+            if (++n >= 80) break;
+        }
+        AgentLog.error(sb.toString());
     }
 
     private static void injectRenderHead(MethodNode method) {

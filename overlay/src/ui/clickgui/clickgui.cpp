@@ -82,14 +82,13 @@ ModuleItem g_hudItems[] = {
     {"背景模糊", "灵动岛毛玻璃效果",   ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
     {"HUD显示",  "显示游戏HUD",        ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
     {"聊天显示", "显示游戏聊天",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"布局编辑器", "拖动缩放HUD组件",  ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
 };
 
 ModuleItem g_infoItems[] = {
-    {"坐标",     "显示 XYZ",           ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
-    {"延迟",     "显示 Ping",          ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
-    {"速度",     "显示移动速度",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
     {"NowPlaying", "音乐播放卡片",     ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
-    {"波形",     "音乐波形动画",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 3, 0.f, 0.f},
+    {"波形",     "音乐波形动画",       ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, 0, 0.f, 0.f},
+    {"沉浸歌词", "HUD上方卡拉OK歌词",  ItemType::Toggle, nullptr, nullptr,       0, 0, nullptr, false, -1, 0.f, 0.f},
 };
 
 ModuleItem g_visualItems[] = {
@@ -106,8 +105,8 @@ struct Category {
 };
 
 Category g_categories[] = {
-    {"HUD", "H", g_hudItems, 7, false},
-    {"信息", "I", g_infoItems, 5, false},
+    {"HUD", "H", g_hudItems, 8, false},
+    {"信息", "I", g_infoItems, 3, false},
     {"视觉", "V", g_visualItems, 2, false},
     {"音乐", "M", nullptr, 0, true},
 };
@@ -122,11 +121,10 @@ void BindSettingsPointers() {
     g_hudItems[4].boolValue = &s.island.blur;
     g_hudItems[5].boolValue = &s.hud_visible;
     g_hudItems[6].boolValue = &s.chat_visible;
-    g_infoItems[0].boolValue = &s.info_coords.enabled;
-    g_infoItems[1].boolValue = &s.info_ping.enabled;
-    g_infoItems[2].boolValue = &s.info_speed.enabled;
-    g_infoItems[3].boolValue = &s.now_playing.enabled;
-    g_infoItems[4].boolValue = &s.now_playing.show_waveform;
+    g_hudItems[7].boolValue = &s.layout_editor_enabled;
+    g_infoItems[0].boolValue = &s.now_playing.enabled;
+    g_infoItems[1].boolValue = &s.now_playing.show_waveform;
+    g_infoItems[2].boolValue = &s.now_playing.immersive_lyrics;
     g_visualItems[0].floatValue = &s.theme.ui_brightness;
     g_visualItems[1].boolValue = &s.theme.material_you;
 }
@@ -479,8 +477,15 @@ void Render(float viewportW, float viewportH, float dt) {
     ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
     bgDl->AddRectFilled(ImVec2(0, 0), ImVec2(viewportW, viewportH), IM_COL32(0, 0, 0, static_cast<int>(160 * alpha)));
 
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(viewportW, viewportH));
+    const float guiW = std::min(viewportW - 80.f, 1520.f);
+    const float guiH = std::min(viewportH - 80.f, 1040.f);
+    const float guiX = (viewportW - guiW) * 0.5f;
+    const float guiY = (viewportH - guiH) * 0.5f;
+    const float sidebarW = 380.f;
+    const float contentW = guiW - sidebarW - 32.f;
+
+    ImGui::SetNextWindowPos(ImVec2(guiX, guiY));
+    ImGui::SetNextWindowSize(ImVec2(guiW, guiH));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -489,17 +494,11 @@ void Render(float viewportW, float viewportH, float dt) {
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                  ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav);
 
-    const float guiW = std::min(viewportW - 80.f, 1520.f);
-    const float guiH = std::min(viewportH - 80.f, 1040.f);
-    const float guiX = (viewportW - guiW) * 0.5f;
-    const float guiY = (viewportH - guiH) * 0.5f;
-    const float sidebarW = 380.f;
-    const float contentW = guiW - sidebarW - 32.f;
-
-    const ImVec2 sidebarMin(guiX, guiY);
-    const ImVec2 sidebarMax(guiX + sidebarW, guiY + guiH);
-    const ImVec2 contentMin(guiX + sidebarW + 32.f, guiY);
-    const ImVec2 contentMax(guiX + guiW, guiY + guiH);
+    const ImVec2 winMin = ImGui::GetWindowPos();
+    const ImVec2 sidebarMin = winMin;
+    const ImVec2 sidebarMax(winMin.x + sidebarW, winMin.y + guiH);
+    const ImVec2 contentMin(winMin.x + sidebarW + 32.f, winMin.y);
+    const ImVec2 contentMax(winMin.x + guiW, winMin.y + guiH);
 
     DrawSidebar(sidebarMin, sidebarMax, alpha, dt);
 

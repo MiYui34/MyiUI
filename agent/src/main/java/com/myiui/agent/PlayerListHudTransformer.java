@@ -9,6 +9,8 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import com.myiui.agent.mapping.Mappings;
+
 import java.lang.instrument.ClassFileTransformer;
 import java.security.ProtectionDomain;
 
@@ -53,11 +55,10 @@ public final class PlayerListHudTransformer implements ClassFileTransformer {
     }
 
     static boolean shouldSkipRender(MethodNode method) {
-        if (method.desc == null || !method.desc.contains("Lnet/minecraft/class_332;")) {
+        if (method.desc == null || !Mappings.descContainsAny(Mappings.DRAW_CONTEXT_DESC_MARKERS, method.desc)) {
             return false;
         }
-        String name = method.name;
-        return "render".equals(name) || "method_1919".equals(name);
+        return Mappings.matchesAny(Mappings.PLAYER_LIST_RENDER_METHOD, method.name);
     }
 
     private static void injectEarlyReturn(MethodNode method) {

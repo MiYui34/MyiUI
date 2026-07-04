@@ -5,6 +5,8 @@
 namespace myiui::jvm::jni_func {
 
 jobject GetClassLoaderFromThreadName(JNIEnv* env, const char* threadName);
+jobject GetClassLoaderFromThreadNameContains(JNIEnv* env, const char* substring);
+jobject GetClassLoaderFromCurrentThread(JNIEnv* env);
 jclass DefineClass(JNIEnv* env, const jbyte* bytes, jsize len, jobject classLoader);
 jclass DefineClassFromArray(JNIEnv* env, jbyteArray classBytes, jobject classLoader);
 jclass FindClassGlobal(const char* signature);

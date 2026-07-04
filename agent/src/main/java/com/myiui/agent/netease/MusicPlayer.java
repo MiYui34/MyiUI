@@ -46,6 +46,7 @@ public final class MusicPlayer {
     private static volatile boolean stopRequested = false;
     private static volatile boolean seekRequested = false;
     private static volatile long seekTargetMs = 0;
+    private static volatile boolean trackEndedNaturally = false;
     private static final Object PLAY_LOCK = new Object();
     private static volatile boolean ffmpegReady = false;
     private static final Object FFMPEG_LOCK = new Object();
@@ -200,15 +201,31 @@ public final class MusicPlayer {
     // ── 播放核心 ──
 
     private static void startPlayback() {
-        // 若由播放线程自身调用（自动切歌），不要 interrupt/join 自己（会死等 1.5s）
         Thread current = Thread.currentThread();
         if (playThread != null && playThread != current) {
             stopRequested = true;
             closeActive();
             playThread.interrupt();
-            try { playThread.join(1500); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            try {
+                playThread.join(1500);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        } else if (playThread == current) {
+            // 当前播放线程内请求切歌：只标记结束，由 finally 里异步拉起下一首
+            stopRequested = true;
+            return;
         }
-        // 自身调用时：只需让当前循环退出（stopRequested 会在下面重置为 false）
+
+        beginPlaybackThread();
+    }
+
+    private static void beginPlaybackThread() {
+        if (queue.isEmpty() || currentIndex < 0 || currentIndex >= queue.size()) {
+            playing = false;
+            paused = false;
+            return;
+        }
 
         final Song song = queue.get(currentIndex);
         currentSong.set(song);
@@ -218,6 +235,7 @@ public final class MusicPlayer {
         paused = false;
         stopRequested = false;
         seekRequested = false;
+        trackEndedNaturally = false;
         LyricManager.onSongChanged(song.id);
 
         playThread = new Thread(() -> playbackLoop(song), "MyiUI-MusicPlayer");
@@ -233,6 +251,10 @@ public final class MusicPlayer {
             String streamUrl = resolveSongUrl(song.id);
             if (streamUrl == null || streamUrl.isEmpty()) {
                 AgentLog.error("NetEase: no url for song " + song.id, null);
+                synchronized (PLAY_LOCK) {
+                    playing = false;
+                    paused = false;
+                }
                 return;
             }
             AgentLog.info("NetEase playing: " + song.name + " (" + streamUrl + ")");
@@ -270,8 +292,9 @@ public final class MusicPlayer {
                 }
                 org.bytedeco.javacv.Frame frame = grabber.grabSamples();
                 if (frame == null || frame.samples == null) {
-                    // 流结束
-                    if (!stopRequested) onSongCompleted(song);
+                    if (!stopRequested) {
+                        trackEndedNaturally = true;
+                    }
                     break;
                 }
                 byte[] pcm = frameToPcm16(frame, channels);
@@ -287,14 +310,67 @@ public final class MusicPlayer {
         } catch (Throwable t) {
             if (!stopRequested) AgentLog.error("NetEase playback failed: " + song.name, t);
         } finally {
-            if (line != null) { try { line.drain(); } catch (Throwable ignored) {} try { line.stop(); } catch (Throwable ignored) {} try { line.close(); } catch (Throwable ignored) {} }
-            if (grabber != null) { try { grabber.stop(); } catch (Throwable ignored) {} try { grabber.release(); } catch (Throwable ignored) {} }
-            // 仅当本线程的资源仍是 active 时才清空，避免清掉新播放线程刚设置的引用
+            final boolean endedNaturally = trackEndedNaturally;
+            trackEndedNaturally = false;
+            if (line != null) {
+                try { line.drain(); } catch (Throwable ignored) {}
+                try { line.stop(); } catch (Throwable ignored) {}
+                try { line.close(); } catch (Throwable ignored) {}
+            }
+            if (grabber != null) {
+                try { grabber.stop(); } catch (Throwable ignored) {}
+                try { grabber.release(); } catch (Throwable ignored) {}
+            }
             synchronized (PLAY_LOCK) {
                 if (activeGrabber == grabber) activeGrabber = null;
                 if (activeLine == line) activeLine = null;
+                if (playThread == Thread.currentThread()) {
+                    playThread = null;
+                }
+                if (!stopRequested) {
+                    playing = false;
+                    paused = false;
+                }
+            }
+            if (endedNaturally && !stopRequested) {
+                scheduleAutoAdvance(song);
             }
         }
+    }
+
+    private static void scheduleAutoAdvance(Song finishedSong) {
+        Thread advancer = new Thread(() -> {
+            synchronized (PLAY_LOCK) {
+                if (stopRequested) return;
+                onTrackCompleted(finishedSong);
+            }
+        }, "MyiUI-MusicAdvance");
+        advancer.setDaemon(true);
+        advancer.start();
+    }
+
+    private static void onTrackCompleted(Song song) {
+        try {
+            if (completionListener != null) completionListener.onCompleted(song.id);
+        } catch (Throwable ignored) {}
+        if (queue.isEmpty()) {
+            playing = false;
+            return;
+        }
+        if (mode == PlayMode.SINGLE_LOOP) {
+            beginPlaybackThread();
+            return;
+        }
+        if (mode == PlayMode.RANDOM && queue.size() > 1) {
+            int next;
+            do {
+                next = (int) (Math.random() * queue.size());
+            } while (next == currentIndex);
+            currentIndex = next;
+        } else {
+            currentIndex = (currentIndex + 1) % queue.size();
+        }
+        beginPlaybackThread();
     }
 
     private static byte[] frameToPcm16(org.bytedeco.javacv.Frame frame, int channels) {
@@ -381,23 +457,13 @@ public final class MusicPlayer {
         }
     }
 
-    private static void onSongCompleted(Song song) {
-        try {
-            if (completionListener != null) completionListener.onCompleted(song.id);
-        } catch (Throwable ignored) {}
-        // 自动下一首
-        if (!stopRequested && mode != PlayMode.SINGLE_LOOP) {
-            next();
-        } else if (mode == PlayMode.SINGLE_LOOP) {
-            startPlayback();
-        }
-    }
-
     private static void closeActive() {
-        if (activeGrabber != null) { try { activeGrabber.stop(); } catch (Throwable ignored) {} }
-        if (activeLine != null) { try { activeLine.stop(); } catch (Throwable ignored) {} try { activeLine.close(); } catch (Throwable ignored) {} }
+        FFmpegFrameGrabber grabber = activeGrabber;
+        SourceDataLine line = activeLine;
         activeGrabber = null;
         activeLine = null;
+        if (grabber != null) { try { grabber.stop(); } catch (Throwable ignored) {} try { grabber.release(); } catch (Throwable ignored) {} }
+        if (line != null) { try { line.stop(); } catch (Throwable ignored) {} try { line.close(); } catch (Throwable ignored) {} }
     }
 
     private static void applyVolumeToLine() {

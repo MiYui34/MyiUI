@@ -48,17 +48,32 @@ JNIEnv* AttachEnv() {
         return nullptr;
     }
     JNIEnv* env = nullptr;
-    const jint rc = g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_21);
-    if (rc == JNI_EDETACHED) {
-        if (g_vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
-            return nullptr;
+    // Probe JNI versions from newest to oldest so the overlay is not pinned to Java 21.
+    // GetEnv returns JNI_EDETACHED (version-independent) when the thread needs attaching,
+    // JNI_EVERSION when the requested version is unsupported, or JNI_OK otherwise.
+    static const jint kJniVersions[] = {
+        JNI_VERSION_21,
+        0x00140000,  // JNI_VERSION_20
+        0x00130000,  // JNI_VERSION_19
+        0x000a0000,  // JNI_VERSION_10
+        JNI_VERSION_9,
+        JNI_VERSION_1_8,
+        JNI_VERSION_1_6,
+    };
+    for (jint version : kJniVersions) {
+        const jint rc = g_vm->GetEnv(reinterpret_cast<void**>(&env), version);
+        if (rc == JNI_OK) {
+            return env;
         }
-        return env;
+        if (rc == JNI_EDETACHED) {
+            if (g_vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
+                return nullptr;
+            }
+            return env;
+        }
+        // rc == JNI_EVERSION: fall through and try an older JNI version.
     }
-    if (rc != JNI_OK) {
-        return nullptr;
-    }
-    return env;
+    return nullptr;
 }
 
 }  // namespace myiui::jvm

@@ -25,19 +25,14 @@ struct ThemeSettings {
     float ui_brightness = 1.f;
 };
 
-struct InfoWidgetSettings {
-    bool enabled = true;
-    InfoAnchor anchor = InfoAnchor::TopLeft;
-    float x = 8.f;
-    float y = 8.f;
-};
-
 struct NowPlayingSettings {
     bool enabled = true;
     InfoAnchor anchor = InfoAnchor::BottomLeft;
-    float x = 8.f;
-    float y = -120.f;
+    float x = 16.f;
+    float y = -16.f;
     bool show_waveform = true;
+    float scale = 1.f;
+    bool immersive_lyrics = false;
 };
 
 struct IslandSettings {
@@ -46,19 +41,18 @@ struct IslandSettings {
     float opacity = 0.5f;
     bool blur = false;
     bool show_fps = true;
+    float offset_x = 0.f;
+    float offset_y = 0.f;
 };
 
 struct UserSettings {
     int version = 1;
     ThemeSettings theme;
-    InfoWidgetSettings info_coords;
-    InfoWidgetSettings info_ping;
-    InfoWidgetSettings info_speed;
-    InfoWidgetSettings info_fps;
     NowPlayingSettings now_playing;
     IslandSettings island;
     bool hud_visible = true;
     bool chat_visible = true;
+    bool layout_editor_enabled = false;
 };
 
 UserSettings& GetUserSettings();

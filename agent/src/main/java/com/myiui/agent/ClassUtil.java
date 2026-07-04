@@ -1,31 +1,28 @@
 package com.myiui.agent;
 
+import com.myiui.agent.mapping.Mappings;
+
 final class ClassUtil {
     private ClassUtil() {}
 
     static boolean isTitleScreen(String internalName) {
-        return "net/minecraft/class_442".equals(internalName)
-                || "net/minecraft/client/gui/screen/TitleScreen".equals(internalName);
+        return Mappings.isClass(Mappings.TITLE_SCREEN_CLASS, internalName);
     }
 
     static boolean isScreen(String internalName) {
-        return "net/minecraft/class_437".equals(internalName)
-                || "net/minecraft/client/gui/screen/Screen".equals(internalName);
+        return Mappings.isClass(Mappings.SCREEN_CLASS, internalName);
     }
 
     static boolean isMinecraftClient(String internalName) {
-        return "net/minecraft/class_310".equals(internalName)
-                || "net/minecraft/client/MinecraftClient".equals(internalName);
+        return Mappings.isClass(Mappings.MINECRAFT_CLIENT_CLASS, internalName);
     }
 
     static boolean isInGameHud(String internalName) {
-        return "net/minecraft/class_329".equals(internalName)
-                || "net/minecraft/client/gui/hud/InGameHud".equals(internalName);
+        return Mappings.isClass(Mappings.IN_GAME_HUD_CLASS, internalName);
     }
 
     static boolean isPlayerListHud(String internalName) {
-        return "net/minecraft/class_355".equals(internalName)
-                || "net/minecraft/client/gui/hud/PlayerListHud".equals(internalName);
+        return Mappings.isClass(Mappings.PLAYER_LIST_HUD_CLASS, internalName);
     }
 
     static boolean isTitleScreenInstance(Object screen) {

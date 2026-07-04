@@ -15,6 +15,7 @@
 #include "ui/menu_app.h"
 #include "ui/clickgui/clickgui.h"
 #include "ui/hud/hud_renderer.h"
+#include "ui/hud/layout_editor.h"
 #include "ui/island/island_renderer.h"
 #include "ui/music/music_panel.h"
 #include "ui/theme/theme_runtime.h"
@@ -361,17 +362,23 @@ static void RenderOverlayFrame(HWND hwnd) {
             MenuAppRender(ctx);
         } else if (islandActive || clickguiOpen) {
             const float dt = ImGui::GetIO().DeltaTime;
-            if (myiui::ui::clickgui::HudVisible() && !clickguiOpen &&
-                g_shm.GetScreenKind() == myiui::shared::ScreenKind::InGame) {
+            const bool layoutEdit = clickguiOpen && myiui::config::GetUserSettingsConst().layout_editor_enabled;
+            const bool inGame = g_shm.GetScreenKind() == myiui::shared::ScreenKind::InGame;
+            if (myiui::ui::clickgui::HudVisible() && (!clickguiOpen || layoutEdit) && inGame) {
                 myiui::ui::hud::HudRender(g_config, g_shm, static_cast<float>(viewport[2]),
-                                          static_cast<float>(viewport[3]), dt);
+                                          static_cast<float>(viewport[3]), dt, layoutEdit);
             }
-            // ClickGui 打开时隐藏灵动岛
-            if (!clickguiOpen) {
-                if (islandActive && myiui::ui::clickgui::IslandVisible()) {
-                    myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
-                                                    static_cast<float>(viewport[3]), dt);
-                }
+            if ((!clickguiOpen || layoutEdit) && islandActive && myiui::ui::clickgui::IslandVisible()) {
+                myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
+                                                static_cast<float>(viewport[3]), dt);
+            }
+            if (!clickguiOpen && inGame && myiui::ui::clickgui::HudVisible()) {
+                myiui::ui::hud::HudRenderImmersiveLyrics(g_config, g_shm, static_cast<float>(viewport[2]),
+                                                         static_cast<float>(viewport[3]));
+            }
+            if (layoutEdit && inGame) {
+                myiui::ui::hud::LayoutEditorRender(g_config, g_shm, static_cast<float>(viewport[2]),
+                                                    static_cast<float>(viewport[3]));
             }
             myiui::ui::clickgui::Render(static_cast<float>(viewport[2]),
                                         static_cast<float>(viewport[3]), dt);

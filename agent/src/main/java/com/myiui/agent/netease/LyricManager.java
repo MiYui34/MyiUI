@@ -83,6 +83,32 @@ public final class LyricManager {
         return "";
     }
 
+    /** 当前行内进度 0..1，用于卡拉 OK 逐字高亮。 */
+    public static float lineProgress(long positionMs) {
+        List<LyricLine> lines = linesRef.get();
+        if (lines.isEmpty()) return 0f;
+        LyricLine current = null;
+        int currentIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            LyricLine l = lines.get(i);
+            if (l.timeMs <= positionMs) {
+                current = l;
+                currentIdx = i;
+            } else {
+                break;
+            }
+        }
+        if (current == null) return 0f;
+        long start = current.timeMs;
+        long end = start + 4000L;
+        if (currentIdx + 1 < lines.size()) {
+            end = lines.get(currentIdx + 1).timeMs;
+        }
+        if (end <= start) return 0f;
+        float t = (positionMs - start) / (float) (end - start);
+        return Math.max(0f, Math.min(1f, t));
+    }
+
     public static boolean hasLyrics() {
         return !linesRef.get().isEmpty();
     }

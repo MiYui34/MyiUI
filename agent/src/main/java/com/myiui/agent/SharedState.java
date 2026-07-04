@@ -240,8 +240,29 @@ public final class SharedState {
         }
     }
 
+    private static volatile boolean versionDetected = false;
+
+    /** One-time Minecraft version detection for the mapping/diagnostics layer. */
+    private static void detectVersionOnce(Object client) {
+        if (versionDetected || client == null) {
+            return;
+        }
+        try {
+            java.lang.reflect.Method m = ReflectUtil.findInstanceMethod(
+                    client.getClass(), new String[]{"getGameVersion", "method_1515"});
+            Object v = m.invoke(client);
+            if (v instanceof String s) {
+                com.myiui.agent.mapping.McVersion.detectFromString(s);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            versionDetected = true;
+        }
+    }
+
     public static void syncMenuWithClient(Object client) {
         try {
+            detectVersionOnce(client);
             if (vanillaConnectInProgress) {
                 Object world = ReflectUtil.getWorld(client);
                 if (world != null) {

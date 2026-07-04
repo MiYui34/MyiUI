@@ -172,37 +172,55 @@ final class ReflectUtil {
         return findGameDirectory(client);
     }
 
+    // ---- Static field: 2-candidate (legacy) + N-candidate ----
+
     static Object getStaticField(Class<?> clazz, String named, String intermediary) throws ReflectiveOperationException {
-        for (String name : new String[]{named, intermediary}) {
-            try {
-                var field = clazz.getDeclaredField(name);
-                field.setAccessible(true);
-                return field.get(null);
-            } catch (NoSuchFieldException ignored) {
-            }
-        }
-        throw new NoSuchFieldException(named + "/" + intermediary);
+        return getStaticField(clazz, new String[]{named, intermediary});
     }
 
+    static Object getStaticField(Class<?> clazz, String... names) throws ReflectiveOperationException {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (String name : names) {
+                if (name == null) continue;
+                try {
+                    var field = current.getDeclaredField(name);
+                    field.setAccessible(true);
+                    return field.get(null);
+                } catch (NoSuchFieldException ignored) {
+                }
+            }
+            current = current.getSuperclass();
+        }
+        logMissingField(clazz, names, true);
+        throw new NoSuchFieldException(join(names));
+    }
+
+    // ---- Instance field: 2-candidate (legacy) + N-candidate ----
+
     static Object getField(Object target, String named, String intermediary) throws ReflectiveOperationException {
+        return getField(target, new String[]{named, intermediary});
+    }
+
+    static Object getField(Object target, String... names) throws ReflectiveOperationException {
         Class<?> clazz = target.getClass();
         while (clazz != null && clazz != Object.class) {
-            try {
-                var field = clazz.getDeclaredField(named);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-            }
-            try {
-                var field = clazz.getDeclaredField(intermediary);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
+            for (String name : names) {
+                if (name == null) continue;
+                try {
+                    var field = clazz.getDeclaredField(name);
+                    field.setAccessible(true);
+                    return field.get(target);
+                } catch (NoSuchFieldException ignored) {
+                }
             }
             clazz = clazz.getSuperclass();
         }
-        throw new NoSuchFieldException(named + "/" + intermediary);
+        logMissingField(target.getClass(), names, false);
+        throw new NoSuchFieldException(join(names));
     }
+
+    // ---- Static method ----
 
     static java.lang.reflect.Method findStaticMethod(Class<?> clazz, String named, String intermediary)
             throws NoSuchMethodException {
@@ -215,7 +233,13 @@ final class ReflectUtil {
 
     static java.lang.reflect.Method findStaticMethod(Class<?> clazz, String named, String intermediary,
                                                      Class<?>... paramTypes) throws NoSuchMethodException {
-        for (String name : new String[]{named, intermediary}) {
+        return findStaticMethod(clazz, new String[]{named, intermediary}, paramTypes);
+    }
+
+    static java.lang.reflect.Method findStaticMethod(Class<?> clazz, String[] names, Class<?>... paramTypes)
+            throws NoSuchMethodException {
+        for (String name : names) {
+            if (name == null) continue;
             try {
                 java.lang.reflect.Method method = clazz.getDeclaredMethod(name, paramTypes);
                 method.setAccessible(true);
@@ -227,14 +251,27 @@ final class ReflectUtil {
             } catch (NoSuchMethodException ignored) {
             }
         }
-        throw new NoSuchMethodException(named + "/" + intermediary);
+        java.lang.reflect.Method byShape = findByNameAndParamCount(clazz, names, paramTypes.length, true);
+        if (byShape != null) {
+            return byShape;
+        }
+        logMissingMethod(clazz, names, paramTypes);
+        throw new NoSuchMethodException(join(names));
     }
+
+    // ---- Instance method: 2-candidate (legacy) + N-candidate, with structural fallback ----
 
     static java.lang.reflect.Method findInstanceMethod(Class<?> clazz, String named, String intermediary,
                                                        Class<?>... paramTypes) throws NoSuchMethodException {
+        return findInstanceMethod(clazz, new String[]{named, intermediary}, paramTypes);
+    }
+
+    static java.lang.reflect.Method findInstanceMethod(Class<?> clazz, String[] names, Class<?>... paramTypes)
+            throws NoSuchMethodException {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
-            for (String name : new String[]{named, intermediary}) {
+            for (String name : names) {
+                if (name == null) continue;
                 try {
                     java.lang.reflect.Method method = current.getDeclaredMethod(name, paramTypes);
                     method.setAccessible(true);
@@ -248,6 +285,92 @@ final class ReflectUtil {
             }
             current = current.getSuperclass();
         }
-        throw new NoSuchMethodException(named + "/" + intermediary);
+        // Structural fallback: a candidate name may exist but with a changed descriptor
+        // (parameter types shifted across versions). Match by name + parameter count.
+        java.lang.reflect.Method byShape = findByNameAndParamCount(clazz, names, paramTypes.length, false);
+        if (byShape != null) {
+            return byShape;
+        }
+        logMissingMethod(clazz, names, paramTypes);
+        throw new NoSuchMethodException(join(names));
+    }
+
+    /**
+     * Find a method by any candidate name and exact parameter count, ignoring exact parameter types.
+     * Handles cross-version descriptor drift where a method keeps its (intermediary) name but a
+     * parameter type changed. Returns null if no unambiguous match.
+     */
+    static java.lang.reflect.Method findByNameAndParamCount(Class<?> clazz, String[] names, int paramCount,
+                                                            boolean staticOnly) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (java.lang.reflect.Method m : current.getDeclaredMethods()) {
+                if (m.getParameterCount() != paramCount) continue;
+                boolean isStatic = java.lang.reflect.Modifier.isStatic(m.getModifiers());
+                if (staticOnly != isStatic) continue;
+                for (String name : names) {
+                    if (name != null && name.equals(m.getName())) {
+                        m.setAccessible(true);
+                        return m;
+                    }
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    // ---- Diagnostics ----
+
+    private static final java.util.Set<String> LOGGED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static void logMissingMethod(Class<?> clazz, String[] names, Class<?>[] paramTypes) {
+        String key = "m:" + clazz.getName() + ":" + join(names) + ":" + paramTypes.length;
+        if (!LOGGED.add(key)) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Mapping miss: method ").append(join(names)).append(" (").append(paramTypes.length)
+                .append(" params) not found on ").append(clazz.getName())
+                .append(". Declared methods: ");
+        Class<?> current = clazz;
+        int listed = 0;
+        while (current != null && current != Object.class && listed < 60) {
+            for (java.lang.reflect.Method m : current.getDeclaredMethods()) {
+                sb.append(m.getName()).append('(').append(m.getParameterCount()).append(") ");
+                if (++listed >= 60) break;
+            }
+            current = current.getSuperclass();
+        }
+        AgentLog.error(sb.toString());
+    }
+
+    private static void logMissingField(Class<?> clazz, String[] names, boolean isStatic) {
+        String key = "f:" + clazz.getName() + ":" + join(names) + ":" + isStatic;
+        if (!LOGGED.add(key)) {
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Mapping miss: field ").append(join(names)).append(isStatic ? " (static)" : "")
+                .append(" not found on ").append(clazz.getName()).append(". Declared fields: ");
+        Class<?> current = clazz;
+        int listed = 0;
+        while (current != null && current != Object.class && listed < 80) {
+            for (java.lang.reflect.Field f : current.getDeclaredFields()) {
+                sb.append(f.getName()).append(' ');
+                if (++listed >= 80) break;
+            }
+            current = current.getSuperclass();
+        }
+        AgentLog.error(sb.toString());
+    }
+
+    private static String join(String[] names) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < names.length; i++) {
+            if (i > 0) sb.append('/');
+            sb.append(names[i]);
+        }
+        return sb.toString();
     }
 }

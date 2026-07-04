@@ -14,6 +14,6 @@ void RenderNowPlaying(const AppConfig& cfg, const myiui::shared::MusicHudState& 
                       const myiui::config::NowPlayingSettings& settings, float viewportW, float viewportH, float dt);
 
 void RenderMiniWaveform(ImDrawList* dl, ImVec2 min, ImVec2 max, const float* bins, int count, const int accent[4],
-                        float alpha);
+                        float alpha, bool is_playing = true);
 
 }  // namespace myiui::ui::hud

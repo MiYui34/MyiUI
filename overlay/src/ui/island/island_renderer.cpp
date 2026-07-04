@@ -1,6 +1,7 @@
 #include "ui/island/island_renderer.h"
 #include "bridge/native_state.h"
 #include "bridge/ui_state_types.h"
+#include "config/user_settings.h"
 #include "ui/clickgui/clickgui.h"
 #include "ui/fonts.h"
 #include "ui/hud/now_playing.h"
@@ -8,6 +9,9 @@
 #include "spring_animator.h" // 引入弹簧动画
 
 #include "imgui.h"
+
+#define NOMINMAX
+#include <windows.h>
 
 #include <algorithm>
 #include <array>
@@ -31,11 +35,14 @@ Spring1D g_springH;       // 动态高度
 Spring1D g_springHover;   // 鼠标悬停/按压形变
 Spring1D g_springContent; // 内容淡入
 
+// [新增] 流体分离气泡动画状态
+Spring1D g_springBubbleCenter; // 气泡中心相对主岛右边缘的物理坐标
+Spring1D g_springBubbleScale;  // 气泡的缩放
+
 float g_idleW = 200.f;
 bool g_initialized = false;
 
 uint16_t g_lastSeq = 0;
-bool g_lyricsExpanded = false;
 char g_idleTitleBuf[256]{};
 
 struct TabLayoutCache {
@@ -122,7 +129,7 @@ void RenderLyricsExpanded(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, f
         const float waveY = y + h - S(18.f);
         const float waveH = S(10.f);
         myiui::ui::hud::RenderMiniWaveform(dl, ImVec2(tx, waveY), ImVec2(x + w - S(12.f), waveY + waveH),
-                                           music.waveform, 32, theme.accent, alpha);
+                                           music.waveform, 32, theme.accent, alpha, music.playing);
     }
 }
 
@@ -151,6 +158,20 @@ void RenderIdle(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS
     const char* title = BuildIdleTitle(island);
     DrawOutlinedText(dl, fS, sizeS, ImVec2(curX, cy - FontCapH(fS, sizeS)),
                      gray, title, alpha);
+}
+
+void RenderHoverDetail(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS,
+                       const myiui::shared::IslandState& island,
+                       float x, float y, float w, float h, float alpha,
+                       const ThemeConfig& theme) {
+    const float tx = x + S(42.f);
+    const char* title = island.title[0] ? island.title : "MyiUI";
+    DrawOutlinedText(dl, fP, sizeP, ImVec2(tx, y + S(11.f)),
+                     IM_COL32(255, 255, 255, static_cast<int>(255 * alpha)), title, alpha);
+
+    const char* detail = island.subtitle[0] ? island.subtitle : BuildIdleTitle(island);
+    DrawOutlinedText(dl, fS, sizeS, ImVec2(tx, y + S(28.f)),
+                     IM_COL32(170, 170, 170, static_cast<int>(255 * alpha)), detail, alpha);
 }
 
 void RenderExpanded(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float sizeS,
@@ -318,6 +339,47 @@ void RenderTabList(ImDrawList* dl, ImFont* fP, ImFont* fS, float sizeP, float si
     }
 }
 
+void SyncOverlayMousePos() {
+    ImGuiIO& io = ImGui::GetIO();
+    const HWND hwnd = reinterpret_cast<HWND>(ImGui::GetMainViewport()->PlatformHandleRaw);
+    if (!hwnd) {
+        return;
+    }
+    POINT pt{};
+    if (!::GetCursorPos(&pt)) {
+        return;
+    }
+    if (!::ScreenToClient(hwnd, &pt)) {
+        return;
+    }
+    io.AddMousePosEvent(static_cast<float>(pt.x), static_cast<float>(pt.y));
+}
+
+bool IslandHoverHitTest(float minX, float minY, float maxX, float maxY) {
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    const float pad = S(6.f);
+    return mouse.x >= minX - pad && mouse.x <= maxX + pad && mouse.y >= minY - pad && mouse.y <= maxY + pad;
+}
+
+void ComputeIslandLayout(float viewportW, float introVal, float currentW, float currentH,
+                         float& outDrawX, float& outDrawY, float& outCx, float& outCy,
+                         float& outScaledW, float& outScaledH, float& outMinX, float& outMinY,
+                         float& outMaxX, float& outMaxY) {
+    const auto& isl = myiui::config::GetUserSettingsConst().island;
+    const float top = S(18.f) + isl.offset_y;
+    outDrawX = (viewportW - currentW) * 0.5f + isl.offset_x;
+    outDrawY = top;
+    const float introScale = 0.5f + 0.5f * introVal;
+    outCx = outDrawX + currentW * 0.5f;
+    outCy = outDrawY + currentH * 0.5f;
+    outScaledW = currentW * introScale;
+    outScaledH = currentH * introScale;
+    outMinX = outCx - outScaledW * 0.5f;
+    outMinY = outCy - outScaledH * 0.5f;
+    outMaxX = outCx + outScaledW * 0.5f;
+    outMaxY = outCy + outScaledH * 0.5f;
+}
+
 }  // namespace
 
 void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
@@ -353,6 +415,10 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         g_springH.stiffness = 320.f;      g_springH.damping = 14.f;
         g_springHover.stiffness = 450.f;  g_springHover.damping = 18.f;
         g_springContent.stiffness = 280.f; g_springContent.damping = 18.f;
+        
+        // 分离气泡专用的弹簧设置
+        g_springBubbleCenter.stiffness = 250.f; g_springBubbleCenter.damping = 18.f;
+        g_springBubbleScale.stiffness = 300.f;  g_springBubbleScale.damping = 15.f;
 
         g_springIntro.Snap(0.f);
         g_springExpand.Snap(0.f);
@@ -361,6 +427,8 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         g_springH.Snap(0.f);
         g_springHover.Snap(0.f);
         g_springContent.Snap(0.f);
+        g_springBubbleCenter.Snap(0.f);
+        g_springBubbleScale.Snap(0.f);
     }
 
     // ── 状态推导 ──
@@ -374,25 +442,7 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     }
 
     const bool isMusicMode = island.active_slot == 0 && island.title[0];
-    const bool lyricsMode = island.mode == static_cast<uint8_t>(myiui::shared::IslandMode::Lyrics);
-    if (!isMusicMode) {
-        g_lyricsExpanded = false;
-    }
 
-    const bool shouldExpandNotify = !tabActive && island.notify_count > 0;
-    const bool shouldExpandTab = tabActive;
-    const bool shouldExpandLyrics = isMusicMode && lyricsMode && g_lyricsExpanded;
-    const bool shouldExpand = shouldExpandTab || shouldExpandNotify || shouldExpandLyrics;
-    g_springExpand.SetTarget(shouldExpand ? 1.f : 0.f);
-    g_springContent.SetTarget(shouldExpand ? 1.f : 0.f);
-
-    if (island.island_seq != g_lastSeq) {
-        g_lastSeq = island.island_seq;
-        g_springSwitch.Snap(shouldExpandNotify ? 0.f : std::clamp(g_springSwitch.pos, 0.f, 1.f));
-        g_springSwitch.SetTarget(shouldExpandNotify ? 1.f : 0.f);
-    }
-
-    // ── 计算目标尺寸 ──
     ImFont* fP = GetUiFonts().regular ? GetUiFonts().regular : ImGui::GetFont();
     ImFont* fS = fP;
     const float sizeP = S(13.f);
@@ -404,6 +454,48 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     const char* idleTitle = BuildIdleTitle(island);
     g_idleW = CalculateIdleWidth(fP, fS, sizeP, sizeS, idleTitle);
 
+    // 先推进入场动画，再用当前尺寸做悬停命中
+    g_springIntro.Step(delta);
+    const float introVal = g_springIntro.pos;
+    const float introAlpha = std::clamp(introVal, 0.f, 1.f);
+    if (introAlpha <= 0.001f) {
+        return;
+    }
+
+    SyncOverlayMousePos();
+
+    float hitMinX = 0.f;
+    float hitMinY = 0.f;
+    float hitMaxX = 0.f;
+    float hitMaxY = 0.f;
+    float unusedDrawX = 0.f;
+    float unusedDrawY = 0.f;
+    float unusedCx = 0.f;
+    float unusedCy = 0.f;
+    float unusedScaledW = 0.f;
+    float unusedScaledH = 0.f;
+    ComputeIslandLayout(viewportW, introVal, g_springW.pos, g_springH.pos,
+                        unusedDrawX, unusedDrawY, unusedCx, unusedCy, unusedScaledW, unusedScaledH,
+                        hitMinX, hitMinY, hitMaxX, hitMaxY);
+
+    const bool hovered = IslandHoverHitTest(hitMinX, hitMinY, hitMaxX, hitMaxY);
+    const bool active = hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+
+    const bool shouldExpandNotify = !tabActive && island.notify_count > 0;
+    const bool shouldExpandTab = tabActive;
+    const bool shouldExpandHover = hovered && !tabActive && !shouldExpandNotify;
+    const bool shouldExpandMusic = isMusicMode && shouldExpandHover;
+    const bool shouldExpandIdleDetail = !isMusicMode && shouldExpandHover;
+    const bool shouldExpand = shouldExpandTab || shouldExpandNotify || shouldExpandMusic || shouldExpandIdleDetail;
+    g_springExpand.SetTarget(shouldExpand ? 1.f : 0.f);
+    g_springContent.SetTarget(shouldExpand ? 1.f : 0.f);
+
+    if (island.island_seq != g_lastSeq) {
+        g_lastSeq = island.island_seq;
+        g_springSwitch.Snap(shouldExpandNotify ? 0.f : std::clamp(g_springSwitch.pos, 0.f, 1.f));
+        g_springSwitch.SetTarget(shouldExpandNotify ? 1.f : 0.f);
+    }
+
     float targetW = g_idleW;
     float targetH = idleH;
 
@@ -411,11 +503,19 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         UpdateTabLayout(tab, fS, sizeS, viewportW);
         targetW = (std::max)(g_idleW, g_tabLayout.targetW);
         targetH = g_tabLayout.targetH;
-    } else if (shouldExpandLyrics) {
+    } else if (shouldExpandMusic) {
         float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "正在播放");
-        float lyricW = TextW(fS, sizeS, island.lyrics_line[0] ? island.lyrics_line : island.subtitle);
-        targetW = S(52.f) + (std::max)(titleW, lyricW) + S(16.f);
+        const char* detail = island.lyrics_line[0] ? island.lyrics_line
+                            : (island.subtitle[0] ? island.subtitle : "暂无歌词");
+        float detailW = TextW(fS, sizeS, detail);
+        targetW = S(52.f) + (std::max)(titleW, detailW) + S(16.f);
         targetH = expandedH + S(8.f);
+    } else if (shouldExpandIdleDetail) {
+        float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "MyiUI");
+        const char* detail = island.subtitle[0] ? island.subtitle : BuildIdleTitle(island);
+        float detailW = TextW(fS, sizeS, detail);
+        targetW = S(52.f) + (std::max)(titleW, detailW) + S(16.f);
+        targetH = expandedH;
     } else if (shouldExpandNotify) {
         float titleW = TextW(fP, sizeP, island.title[0] ? island.title : "通知");
         float descW = TextW(fS, sizeS, island.subtitle[0] ? island.subtitle : "模块已切换");
@@ -431,62 +531,46 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
         g_springH.SetTarget(targetH);
     }
 
-    // ── 更新所有物理弹簧 ──
-    g_springIntro.Step(delta);
+    // ── 分离气泡的逻辑推导 ──
+    // 条件：音乐处于激活状态，但主岛并没有处于显示音乐的状态，且灵动岛没有被展开
+    bool showBubble = music.valid && (music.playing || music.paused) && !isMusicMode && !shouldExpand;
+    float maxBubbleSize = S(28.f);
+    
+    g_springBubbleScale.SetTarget(showBubble ? 1.0f : 0.0f);
+    // 隐藏时，气泡中心缩回主岛内部 (偏移量为负); 显示时，向外弹出产生间距
+    g_springBubbleCenter.SetTarget(showBubble ? (maxBubbleSize * 0.5f + S(8.f)) : (-maxBubbleSize * 0.5f));
+
     g_springExpand.Step(delta);
     g_springSwitch.Step(delta);
     g_springW.Step(delta);
     g_springH.Step(delta);
+    g_springHover.SetTarget(active ? -1.f : (hovered ? 1.f : 0.f));
     g_springHover.Step(delta);
     g_springContent.Step(delta);
+    g_springBubbleScale.Step(delta);
+    g_springBubbleCenter.Step(delta);
 
-    // ── 渲染前的数据准备 ──
-    float introVal = g_springIntro.pos;
-    float expandVal = g_springExpand.pos;
-    float introAlpha = std::clamp(introVal, 0.f, 1.f);
-    float expandAlpha = std::clamp(expandVal, 0.f, 1.f);
-    
-    if (introAlpha <= 0.001f) return;
+    const float expandVal = g_springExpand.pos;
+    const float currentW = g_springW.pos;
+    const float currentH = g_springH.pos;
 
-    float currentW = g_springW.pos;
-    float currentH = g_springH.pos;
-
-    const float top = S(18.f);
-    const float drawX = (viewportW - currentW) * 0.5f;
-    const float drawY = top;
-
-    float introScale = 0.5f + 0.5f * introVal; 
+    float drawX = 0.f, drawY = 0.f, cx = 0.f, cy = 0.f;
+    float scaledW = 0.f, scaledH = 0.f, sMinX = 0.f, sMinY = 0.f, sMaxX = 0.f, sMaxY = 0.f;
+    ComputeIslandLayout(viewportW, introVal, currentW, currentH,
+                        drawX, drawY, cx, cy, scaledW, scaledH, sMinX, sMinY, sMaxX, sMaxY);
 
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     if (!dl) return;
 
-    const float cx = drawX + currentW * 0.5f;
-    const float cy = drawY + currentH * 0.5f;
-    const float scaledW = currentW * introScale;
-    const float scaledH = currentH * introScale;
-    const float sMinX = cx - scaledW * 0.5f;
-    const float sMinY = cy - scaledH * 0.5f;
-    const float sMaxX = cx + scaledW * 0.5f;
-    const float sMaxY = cy + scaledH * 0.5f;
-
-    // ── 【新增】交互检测与按压下陷反馈 ──
-    bool hovered = ImGui::IsMouseHoveringRect(ImVec2(sMinX, sMinY), ImVec2(sMaxX, sMaxY));
-    bool active = hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left);
-    if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && isMusicMode && lyricsMode) {
-        g_lyricsExpanded = !g_lyricsExpanded;
-    }
-    // 按下时 target 为 -1.0 (产生缩小效果)，悬停为 1.0 (放大)，默认 0.0
-    g_springHover.SetTarget(active ? -1.f : (hovered ? 1.f : 0.f));
-
-    // 计算交互带来的形变缩放 (悬停+4%，按下-5%)
+    // 1. 计算交互带来的形变缩放 (悬停放大，按下缩小)
     const float interactScale = 1.f + g_springHover.pos * 0.04f;
 
-    // ── 【新增】基于速度的体积守恒形变 (Squash & Stretch) ──
-    // 利用自身以及相反轴的变化速度来压缩/拉伸当前轴，营造真实的胶体质感
-    float squishX = 1.f + (g_springW.vel * 0.00015f) - (g_springH.vel * 0.0001f);
-    float squishY = 1.f + (g_springH.vel * 0.00015f) - (g_springW.vel * 0.0001f);
+    // 2. 【升级版】果冻动能反馈 (Jelly Click) + 体积守恒
+    // 结合宽高的物理速度，并叠加鼠标点击瞬间产生的物理波(vel)，制造 Q 弹震感
+    float clickJelly = g_springHover.vel * 0.005f; 
+    float squishX = 1.f + (g_springW.vel * 0.00015f) - (g_springH.vel * 0.0001f) + clickJelly;
+    float squishY = 1.f + (g_springH.vel * 0.00015f) - (g_springW.vel * 0.0001f) - clickJelly;
     
-    // 限制极致形变防止画面穿模崩坏
     squishX = std::clamp(squishX, 0.85f, 1.15f);
     squishY = std::clamp(squishY, 0.85f, 1.15f);
 
@@ -498,18 +582,56 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     const float fMaxX = cx + finalW * 0.5f;
     const float fMaxY = cy + finalH * 0.5f;
 
-    // 绘制背景与边框
     const float bgAlpha = DynOpacity() * introAlpha;
     const ImU32 bgCol = IM_COL32(0, 0, 0, static_cast<int>(255 * bgAlpha));
-    dl->AddRectFilled(ImVec2(fMinX, fMinY), ImVec2(fMaxX, fMaxY), bgCol, radius);
-
     const ImU32 borderCol = IM_COL32(255, 255, 255, static_cast<int>(25 * introAlpha));
+
+    // ── 【新增】液态分离气泡 (Fluid Split Bubble) ──
+    // 为了实现 Metaball (流体元球) 般的粘连效果，我们先于主岛绘制气泡及“连接桥”
+    float bScale = g_springBubbleScale.pos;
+    if (bScale > 0.01f) {
+        float bSize = maxBubbleSize * bScale;
+        float bCenterX = fMaxX + g_springBubbleCenter.pos;
+        float bCenterY = cy;
+        
+        float bMinX = bCenterX - bSize * 0.5f;
+        float bMaxX = bCenterX + bSize * 0.5f;
+        float bMinY = bCenterY - bSize * 0.5f;
+        float bMaxY = bCenterY + bSize * 0.5f;
+
+        // 绘制“粘连桥”：当气泡尚未完全脱离主岛时，用纯黑矩形填补缝隙，产生类似液滴断开前的拉丝感
+        if (bMinX < fMaxX) {
+            float bridgeTop = bCenterY - bSize * 0.35f; 
+            float bridgeBottom = bCenterY + bSize * 0.35f;
+            dl->AddRectFilled(ImVec2(fMaxX - S(5.f), bridgeTop), ImVec2(bCenterX, bridgeBottom), bgCol);
+        }
+
+        // 绘制气泡本体
+        dl->AddRectFilled(ImVec2(bMinX, bMinY), ImVec2(bMaxX, bMaxY), bgCol, bSize * 0.5f);
+        dl->AddRect(ImVec2(bMinX, bMinY), ImVec2(bMaxX, bMaxY), borderCol, bSize * 0.5f, 0, S(1.f));
+
+        // 绘制气泡内的小型音乐频谱
+        if (music.valid && bScale > 0.5f) {
+            float waveW = bSize * 0.55f;
+            float waveH = bSize * 0.5f;
+            float waveX = bCenterX - waveW * 0.5f;
+            float waveY = bCenterY - waveH * 0.5f;
+            
+            dl->PushClipRect(ImVec2(bMinX, bMinY), ImVec2(bMaxX, bMaxY), true);
+            myiui::ui::hud::RenderMiniWaveform(dl, ImVec2(waveX, waveY), ImVec2(waveX + waveW, waveY + waveH),
+                                               music.waveform, 8, theme.accent, introAlpha * bScale, music.playing);
+            dl->PopClipRect();
+        }
+    }
+
+    // 绘制主岛背景与边框
+    dl->AddRectFilled(ImVec2(fMinX, fMinY), ImVec2(fMaxX, fMaxY), bgCol, radius);
     dl->AddRect(ImVec2(fMinX, fMinY), ImVec2(fMaxX, fMaxY), borderCol, radius, 0, S(1.f));
 
+    // 开启主岛内容裁剪
     dl->PushClipRect(ImVec2(fMinX, fMinY), ImVec2(fMaxX, fMaxY), true);
 
-    // ── 【新增】内容惯性视差 (Inertia Parallax) ──
-    // 当外框剧烈改变尺寸时，里面的文字会有细微的物理滞后，而不是死死粘在原位
+    // ── 内容惯性视差 (Inertia Parallax) ──
     float inertiaOffsetX = -g_springW.vel * 0.002f;
     float inertiaOffsetY = -g_springH.vel * 0.003f;
 
@@ -531,11 +653,18 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
                        finalW, finalH, expAlpha, theme);
     }
 
-    if (expAlpha > 0.01f && shouldExpandLyrics) {
+    if (expAlpha > 0.01f && shouldExpandMusic) {
         float offsetY = (1.f - expandVal) * -S(8.f);
         RenderLyricsExpanded(dl, fP, fS, sizeP, sizeS, island, music,
                              fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
                              finalW, finalH, expAlpha, theme);
+    }
+
+    if (expAlpha > 0.01f && shouldExpandIdleDetail) {
+        float offsetY = (1.f - expandVal) * -S(8.f);
+        RenderHoverDetail(dl, fP, fS, sizeP, sizeS, island,
+                          fMinX + inertiaOffsetX, fMinY + offsetY + inertiaOffsetY,
+                          finalW, finalH, expAlpha, theme);
     }
 
     if (tabAlpha > 0.01f && shouldExpandTab && hasTab) {
@@ -547,6 +676,17 @@ void IslandRender(const ThemeConfig& theme, const ShmReader& shm,
     }
 
     dl->PopClipRect();
+}
+
+ImVec4 CalcIslandIdleBounds(float viewportW, float viewportH) {
+    (void)viewportH;
+    const float scale = DynScale();
+    const float w = g_idleW > 0.f ? g_idleW : 200.f * scale;
+    const float h = kIslandIdleH * scale;
+    const auto& isl = myiui::config::GetUserSettingsConst().island;
+    const float top = 18.f * scale + isl.offset_y;
+    const float x = (viewportW - w) * 0.5f + isl.offset_x;
+    return ImVec4(x, top, x + w, top + h);
 }
 
 }  // namespace myiui::ui::island

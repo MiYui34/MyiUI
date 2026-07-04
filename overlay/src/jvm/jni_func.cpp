@@ -2,11 +2,38 @@
 
 #include "jvm_context.h"
 
+#include <cctype>
 #include <cstring>
 
 namespace myiui::jvm::jni_func {
 
-jobject GetClassLoaderFromThreadName(JNIEnv* env, const char* threadName) {
+namespace {
+
+bool ContainsCaseInsensitive(const char* haystack, const char* needle) {
+    if (!haystack || !needle) {
+        return false;
+    }
+    const size_t nlen = std::strlen(needle);
+    if (nlen == 0) {
+        return true;
+    }
+    for (const char* p = haystack; *p; ++p) {
+        size_t i = 0;
+        while (i < nlen && p[i] &&
+               std::tolower(static_cast<unsigned char>(p[i])) ==
+                   std::tolower(static_cast<unsigned char>(needle[i]))) {
+            ++i;
+        }
+        if (i == nlen) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Enumerate live threads and return the context ClassLoader of the first whose name matches.
+// When substring==true the match is a case-insensitive contains, else an exact compare.
+jobject FindContextClassLoader(JNIEnv* env, const char* target, bool substring) {
     jclass threadClass = env->FindClass("java/lang/Thread");
     if (!threadClass) {
         return nullptr;
@@ -40,7 +67,9 @@ jobject GetClassLoaderFromThreadName(JNIEnv* env, const char* threadName) {
         jmethodID getName = env->GetMethodID(threadObjClass, "getName", "()Ljava/lang/String;");
         jstring name = static_cast<jstring>(env->CallObjectMethod(thread, getName));
         const char* nameStr = env->GetStringUTFChars(name, nullptr);
-        if (nameStr && std::strcmp(nameStr, threadName) == 0) {
+        const bool matched = nameStr &&
+            (substring ? ContainsCaseInsensitive(nameStr, target) : std::strcmp(nameStr, target) == 0);
+        if (matched) {
             jmethodID getContextClassLoader =
                 env->GetMethodID(threadObjClass, "getContextClassLoader", "()Ljava/lang/ClassLoader;");
             contextClassLoader = env->CallObjectMethod(thread, getContextClassLoader);
@@ -53,6 +82,40 @@ jobject GetClassLoaderFromThreadName(JNIEnv* env, const char* threadName) {
         }
     }
     return contextClassLoader;
+}
+
+}  // namespace
+
+jobject GetClassLoaderFromThreadName(JNIEnv* env, const char* threadName) {
+    return FindContextClassLoader(env, threadName, false);
+}
+
+jobject GetClassLoaderFromThreadNameContains(JNIEnv* env, const char* substring) {
+    return FindContextClassLoader(env, substring, true);
+}
+
+jobject GetClassLoaderFromCurrentThread(JNIEnv* env) {
+    // The LWJGL callP hook runs on the render thread, so the current thread's context
+    // ClassLoader is the game (Knot) loader — a version-independent last-resort fallback.
+    jclass threadClass = env->FindClass("java/lang/Thread");
+    if (!threadClass) {
+        return nullptr;
+    }
+    jmethodID currentThread =
+        env->GetStaticMethodID(threadClass, "currentThread", "()Ljava/lang/Thread;");
+    if (!currentThread) {
+        return nullptr;
+    }
+    jobject thread = env->CallStaticObjectMethod(threadClass, currentThread);
+    if (!thread) {
+        return nullptr;
+    }
+    jmethodID getContextClassLoader =
+        env->GetMethodID(threadClass, "getContextClassLoader", "()Ljava/lang/ClassLoader;");
+    if (!getContextClassLoader) {
+        return nullptr;
+    }
+    return env->CallObjectMethod(thread, getContextClassLoader);
 }
 
 jclass DefineClass(JNIEnv* env, const jbyte* bytes, jsize len, jobject classLoader) {
