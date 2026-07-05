@@ -1,6 +1,6 @@
 # MyiUI
 
-Minecraft Fabric 1.21.6 进程外注入方案：**Injector + core.dll (overlay) + agent.jar**，v2 使用 **JVMTI + JNI** 直连，保留 ImGui UI。
+Minecraft Fabric **1.21 – 1.21.11** 进程外注入方案（单包自适应）：**Injector + core.dll (overlay) + agent.jar**，v2 使用 **JVMTI + JNI** 直连，保留 ImGui UI。
 
 ## 结构
 
@@ -51,7 +51,7 @@ cmake --build build --config Release
 ## 使用
 
 1. 构建 agent + native（见上）
-2. 启动 Minecraft Fabric 1.21.6
+2. 启动 Minecraft Fabric **1.21 – 1.21.11** 任一版本
 3. 运行 GUI 注入器（会自动设置 `MYIUI_ROOT` 并写入 `project_root.txt`）：
 
 ```powershell

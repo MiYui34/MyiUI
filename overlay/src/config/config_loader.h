@@ -12,9 +12,9 @@ struct ThemeConfig {
     float profile_corner_radius = 20.f;
     float border_width = 2.f;
     float hover_alpha_mul = 1.12f;
-    int glass_tint[4]{255, 255, 255, 20};
-    int glass_tint_strong[4]{255, 255, 255, 36};
-    int border_color[4]{255, 255, 255, 56};
+    int glass_tint[4]{18, 22, 32, 165};
+    int glass_tint_strong[4]{14, 18, 28, 210};
+    int border_color[4]{255, 255, 255, 110};
     int border_accent[4]{90, 200, 250, 115};
     int text_primary[4]{245, 247, 250, 255};
     int text_secondary[4]{178, 184, 196, 255};

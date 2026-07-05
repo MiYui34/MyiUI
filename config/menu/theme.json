@@ -3,9 +3,9 @@
   "brand": "MYIUI",
   "glass": {
     "blur_radius": 20,
-    "background_tint": [255, 255, 255, 20],
-    "glass_strong_tint": [255, 255, 255, 36],
-    "border_color": [255, 255, 255, 56],
+    "background_tint": [18, 22, 32, 165],
+    "glass_strong_tint": [14, 18, 28, 210],
+    "border_color": [255, 255, 255, 110],
     "border_accent": [90, 200, 250, 115],
     "border_width": 2,
     "corner_radius": 14,

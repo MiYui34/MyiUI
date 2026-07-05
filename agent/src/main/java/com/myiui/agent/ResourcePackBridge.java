@@ -74,6 +74,11 @@ public final class ResourcePackBridge {
                     return false;
                 }
                 java.awt.Desktop.getDesktop().open(folder.toFile());
+                // Rescan only after user explicitly opens the folder (not on passive UI reads).
+                try {
+                    resolvePackContext(true);
+                } catch (ReflectiveOperationException ignored) {
+                }
                 return true;
             } catch (Throwable e) {
                 AgentLog.error("OPEN_RESOURCE_PACKS_FOLDER failed", e);
@@ -272,6 +277,11 @@ public final class ResourcePackBridge {
     }
 
     private static PackContext resolvePackContext() throws ReflectiveOperationException {
+        return resolvePackContext(false);
+    }
+
+    /** @param rescan when true, rescan disk and sync from options (mutates manager; use only on explicit user actions) */
+    private static PackContext resolvePackContext(boolean rescan) throws ReflectiveOperationException {
         GameActions.ensureReady();
         Object client = GameActions.resolveClientForBridge();
         if (client == null) {
@@ -285,20 +295,22 @@ public final class ResourcePackBridge {
             return null;
         }
 
-        ReflectUtil.findInstanceMethod(manager.getClass(), "scanPacks", "method_14445").invoke(manager);
-        Object options = GameActions.getGameOptions(client);
-        if (options != null) {
-            try {
-                Method addProfiles = ReflectUtil.findInstanceMethod(options.getClass(),
-                        "addResourcePackProfilesToManager", "method_1627", manager.getClass());
-                addProfiles.invoke(options, manager);
-            } catch (ReflectiveOperationException ignored) {
+        if (rescan) {
+            ReflectUtil.findInstanceMethod(manager.getClass(), "scanPacks", "method_14445").invoke(manager);
+            Object options = GameActions.getGameOptions(client);
+            if (options != null) {
+                try {
+                    Method addProfiles = ReflectUtil.findInstanceMethod(options.getClass(),
+                            "addResourcePackProfilesToManager", "method_1627", manager.getClass());
+                    addProfiles.invoke(options, manager);
+                } catch (ReflectiveOperationException ignored) {
+                }
             }
         }
 
         PackContext ctx = new PackContext();
         ctx.manager = manager;
-        ctx.options = options;
+        ctx.options = GameActions.getGameOptions(client);
 
         Collection<?> enabledProfiles = invokeProfileCollection(manager, "getEnabledProfiles", "method_14444");
         if (enabledProfiles != null) {

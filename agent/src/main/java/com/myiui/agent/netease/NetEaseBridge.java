@@ -29,6 +29,8 @@ public final class NetEaseBridge {
     private static volatile int qrStatus = 0;
     private static volatile long qrLastPollMs = 0;
 
+    private static volatile Thread monitorThread;
+
     public static void init() {
         NetEaseConfig.load();
         LoginManager.load();
@@ -61,7 +63,19 @@ public final class NetEaseBridge {
             }
         }, "MyiUI-ApiServiceStarter");
         starter.setDaemon(true);
+        monitorThread = starter;
         starter.start();
+    }
+
+    /** JVM 退出时停止 API 监控线程与子进程。 */
+    public static void shutdown() {
+        Thread monitor = monitorThread;
+        monitorThread = null;
+        if (monitor != null) {
+            monitor.interrupt();
+        }
+        MusicPlayer.stop();
+        ApiServiceStarter.shutdown();
     }
 
     /** 重新拉取用户资料（用于 myPlaylists 等需要 uid 的接口）。 */

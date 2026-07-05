@@ -172,11 +172,26 @@ public final class ApiServiceStarter {
 
     /** 停止由本类启动的 API 进程。 */
     public static void shutdown() {
-        if (apiProcess != null && apiProcess.isAlive()) {
-            apiProcess.destroy();
-            AgentLog.info("NetEase API service stopped");
-        }
+        Process proc = apiProcess;
         apiProcess = null;
+        started = false;
+        if (proc == null) {
+            return;
+        }
+        if (proc.isAlive()) {
+            final long pid = proc.pid();
+            proc.destroy();
+            try {
+                if (!proc.waitFor(2, TimeUnit.SECONDS)) {
+                    proc.destroyForcibly();
+                    proc.waitFor(1, TimeUnit.SECONDS);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                proc.destroyForcibly();
+            }
+            AgentLog.info("NetEase API service stopped (pid was " + pid + ")");
+        }
     }
 
     public static String startError() { return startError; }

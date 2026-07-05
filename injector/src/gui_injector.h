@@ -17,6 +17,7 @@ enum class LogLevel { Info, Ok, Warn, Err };
 
 struct LogLine {
     std::wstring text;
+    std::wstring timestamp;
     LogLevel level = LogLevel::Info;
 };
 

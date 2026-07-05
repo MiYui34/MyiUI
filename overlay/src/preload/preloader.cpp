@@ -70,7 +70,7 @@ std::wstring FindAgentJar() {
 }  // namespace
 
 bool DefineAndInit(JNIEnv* env) {
-    constexpr const char* kBootstrapClass = "com/myiui/preload/AgentBootstrap";
+    constexpr const char* kBootstrapBinary = "com.myiui.preload.AgentBootstrap";
 
     if (preloader_classSizes == 0) {
         jvm::SpikeLog(L"[preloader] preloader_class.h not generated — build agent first");
@@ -81,22 +81,30 @@ bool DefineAndInit(JNIEnv* env) {
                                                     static_cast<jsize>(preloader_classSizes),
                                                     jvm::GetClassLoader());
     if (!loaderClass) {
-        if (env->ExceptionCheck()) {
-            env->ExceptionClear();
-        }
-        loaderClass = env->FindClass(kBootstrapClass);
+        LogPendingException(env, L"[preloader] defineClass failed: ");
+        loaderClass = jvm::jni_func::LoadClassViaGameLoader(env, kBootstrapBinary);
         if (!loaderClass) {
-            jvm::SpikeLog(L"[preloader] AgentBootstrap defineClass/find failed");
+            loaderClass = jvm::jni_func::FindClassGlobal("Lcom/myiui/preload/AgentBootstrap;");
+        }
+        if (!loaderClass) {
+            jvm::SpikeLog(L"[preloader] AgentBootstrap defineClass/load failed");
+            jvm::SpikeLog(L"[preloader] EXIT Minecraft completely, then inject ONCE on a fresh launch");
             return false;
         }
-        if (!env->GetStaticMethodID(loaderClass, "prepareAgent", "(Ljava/lang/String;)V")) {
+        jfieldID versionField = env->GetStaticFieldID(loaderClass, "BOOTSTRAP_VERSION", "I");
+        if (!versionField) {
             if (env->ExceptionCheck()) {
                 env->ExceptionClear();
             }
-            jvm::SpikeLog(L"[preloader] stale bootstrap class — fully restart Minecraft");
+            jvm::SpikeLog(L"[preloader] outdated AgentBootstrap in JVM — fully EXIT Minecraft and restart");
             return false;
         }
-        jvm::SpikeLog(L"[preloader] reusing AgentBootstrap from game loader");
+        const jint version = env->GetStaticIntField(loaderClass, versionField);
+        if (version < 2) {
+            jvm::SpikeLog(L"[preloader] outdated AgentBootstrap in JVM — fully EXIT Minecraft and restart");
+            return false;
+        }
+        jvm::SpikeLog(L"[preloader] reusing AgentBootstrap already in JVM");
     }
 
     if (myiui::bridge::RegisterPreloaderNatives(env, loaderClass) != JNI_OK) {
@@ -104,11 +112,23 @@ bool DefineAndInit(JNIEnv* env) {
         return false;
     }
 
+    const std::wstring root = myiui::overlay::ResolveProjectRoot();
+    if (root.empty()) {
+        jvm::SpikeLog(L"[preloader] project root unresolved — check project_root.txt or folder layout");
+        return false;
+    }
+    jvm::SpikeLog((std::wstring(L"[preloader] project root: ") + root).c_str());
+
     const std::wstring agentJar = FindAgentJar();
     if (agentJar.empty()) {
         jvm::SpikeLog(L"[preloader] agent jar path missing");
         return false;
     }
+    if (GetFileAttributesW(agentJar.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        jvm::SpikeLog((std::wstring(L"[preloader] agent jar NOT FOUND: ") + agentJar).c_str());
+        return false;
+    }
+    jvm::SpikeLog((std::wstring(L"[preloader] agent jar: ") + agentJar).c_str());
 
     jmethodID prepare = env->GetStaticMethodID(loaderClass, "prepareAgent", "(Ljava/lang/String;)V");
     if (!prepare) {

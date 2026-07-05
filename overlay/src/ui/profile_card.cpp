@@ -114,10 +114,12 @@ void DrawProfileCard(ImDrawList* dl, const ImVec2& pos, const ImVec2& size, cons
 
     const ProfileAvatarTexture& avatar = ProfileAvatarGet();
     if (avatar.valid()) {
-        dl->AddImageRounded(ProfileAvatarImGuiId(), avatarMin, avatarMax, ImVec2(0, 0), ImVec2(1, 1),
-                            IM_COL32(255, 255, 255, static_cast<int>(255 * alphaMul)), avatarRound);
-        dl->AddRect(avatarMin, avatarMax, ColorFromRGBA(cfg.theme.border_color, alphaMul * 0.8f), avatarRound, 0,
-                    cfg.theme.border_width);
+        ImDrawList* avatarDl = ImGui::GetForegroundDrawList();
+        avatarDl->AddRectFilled(avatarMin, avatarMax, IM_COL32(12, 16, 24, static_cast<int>(220 * alphaMul)), avatarRound);
+        avatarDl->AddImageRounded(ProfileAvatarImGuiId(), avatarMin, avatarMax, ImVec2(0, 0), ImVec2(1, 1),
+                                  IM_COL32(255, 255, 255, static_cast<int>(255 * alphaMul)), avatarRound);
+        avatarDl->AddRect(avatarMin, avatarMax, ColorFromRGBA(cfg.theme.border_color, alphaMul * 0.9f), avatarRound, 0,
+                          cfg.theme.border_width);
     } else {
         DrawGlassSurface(dl, avatarMin, avatarMax, cfg.theme.glass_tint, cfg.theme.border_color, avatarRound,
                          cfg.theme.border_width, alphaMul);

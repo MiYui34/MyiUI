@@ -75,6 +75,73 @@ static int g_viewportResizeCooldown = 0;
 static uint32_t g_lastViewportW = 0;
 static uint32_t g_lastViewportH = 0;
 
+// GLFW cursor modes (glfw3.h) — resolved at runtime from the game's glfw DLL.
+static constexpr int kGlfwCursor = 0x00033001;
+static constexpr int kGlfwCursorNormal = 0x00034001;
+static constexpr int kGlfwCursorDisabled = 0x00034003;
+
+using glfwGetCurrentContext_t = void* (*)();
+using glfwGetInputMode_t = int (*)(void*, int);
+using glfwSetInputMode_t = void (*)(void*, int, int);
+
+static glfwGetCurrentContext_t g_glfwGetCurrentContext = nullptr;
+static glfwGetInputMode_t g_glfwGetInputMode = nullptr;
+static glfwSetInputMode_t g_glfwSetInputMode = nullptr;
+static bool g_glfwInputApiResolved = false;
+static bool g_savedGlfwCursorDisabled = false;
+static bool g_uiMouseReleased = false;
+
+static bool ResolveGlfwInputApi() {
+    if (g_glfwInputApiResolved) {
+        return g_glfwGetCurrentContext && g_glfwGetInputMode && g_glfwSetInputMode;
+    }
+    g_glfwInputApiResolved = true;
+    HMODULE glfw = GetModuleHandleW(L"glfw.dll");
+    if (!glfw) glfw = GetModuleHandleW(L"glfw3.dll");
+    if (!glfw) return false;
+    g_glfwGetCurrentContext =
+        reinterpret_cast<glfwGetCurrentContext_t>(GetProcAddress(glfw, "glfwGetCurrentContext"));
+    g_glfwGetInputMode = reinterpret_cast<glfwGetInputMode_t>(GetProcAddress(glfw, "glfwGetInputMode"));
+    g_glfwSetInputMode = reinterpret_cast<glfwSetInputMode_t>(GetProcAddress(glfw, "glfwSetInputMode"));
+    return g_glfwGetCurrentContext && g_glfwGetInputMode && g_glfwSetInputMode;
+}
+
+static void ShowWindowsCursor(bool show) {
+    if (show) {
+        while (ShowCursor(TRUE) < 0) {}
+    } else {
+        while (ShowCursor(FALSE) >= 0) {}
+    }
+}
+
+static void ReleaseGameMouseCapture() {
+    if (g_uiMouseReleased) return;
+    g_savedGlfwCursorDisabled = false;
+    if (ResolveGlfwInputApi()) {
+        if (void* window = g_glfwGetCurrentContext()) {
+            const int mode = g_glfwGetInputMode(window, kGlfwCursor);
+            if (mode == kGlfwCursorDisabled) {
+                g_savedGlfwCursorDisabled = true;
+                g_glfwSetInputMode(window, kGlfwCursor, kGlfwCursorNormal);
+            }
+        }
+    }
+    ClipCursor(nullptr);
+    ShowWindowsCursor(true);
+    g_uiMouseReleased = true;
+}
+
+static void RestoreGameMouseCapture(bool inGame) {
+    if (!g_uiMouseReleased) return;
+    g_uiMouseReleased = false;
+    if (inGame && g_savedGlfwCursorDisabled && ResolveGlfwInputApi()) {
+        if (void* window = g_glfwGetCurrentContext()) {
+            g_glfwSetInputMode(window, kGlfwCursor, kGlfwCursorDisabled);
+        }
+    }
+    g_savedGlfwCursorDisabled = false;
+}
+
 void OverlayInvalidateBackgroundTexture() {
     std::lock_guard lock(g_frameMutex);
     g_lastFrameIndex = UINT32_MAX;
@@ -202,11 +269,10 @@ static void RenderOverlayFrame(HWND hwnd) {
 
     const bool overlayActive = g_shm.IsOverlayActive();
     const bool islandActive = g_shm.IsIslandActive();
-    const bool clickguiOpen = myiui::ui::clickgui::IsOpen();
-    const bool shouldRender = overlayActive || islandActive || clickguiOpen;
 
     // Poll ClickGui toggle key every frame (before shouldRender check)
     {
+        const bool clickguiOpenBefore = myiui::ui::clickgui::IsOpen();
         bool rshiftDown = (GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0;
         static bool rshiftWasDown = false;
         if (rshiftDown && !rshiftWasDown) {
@@ -217,26 +283,28 @@ static void RenderOverlayFrame(HWND hwnd) {
         // ESC 关闭 ClickGui (仅在打开时)；请求抑制随后的 ESC up
         bool escDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
         static bool escWasDown = false;
-        if (escDown && !escWasDown && clickguiOpen) {
+        if (escDown && !escWasDown && clickguiOpenBefore) {
             myiui::ui::clickgui::RequestSuppressEscUp();
-            // 不能直接 Toggle（会再次切回开），用关闭语义
-            // Toggle() 在打开时按 ESC 会变成开 -> 错误，所以这里直接关闭
-            // 但 Toggle 是唯一接口；这里采取：再次 Toggle 会关 -> 但若用户连按会乱。
-            // 改为：仅当打开时，按 ESC 直接关闭（通过再次 Toggle 实现，因为当前是开）
             myiui::ui::clickgui::Toggle();
         }
         escWasDown = escDown;
     }
 
-    // ClickGui 打开时释放鼠标剪裁，使光标可移出窗口；关闭时恢复让游戏接管
+    const bool clickguiOpen = myiui::ui::clickgui::IsOpen();
+    const bool shouldRender = overlayActive || islandActive || clickguiOpen;
+
+    // 主菜单 overlay 或 ClickGui 需要 UI 鼠标：解除 GLFW 光标捕获并显示系统光标
     {
-        static bool s_clickguiWasOpen = false;
-        bool nowOpen = myiui::ui::clickgui::IsOpen();
-        if (nowOpen && !s_clickguiWasOpen) {
-            ClipCursor(nullptr);  // 解除光标剪裁，允许移出窗口
-            ShowCursor(TRUE);
+        const bool needsUiMouse = overlayActive || clickguiOpen;
+        static bool s_uiMouseActive = false;
+        if (needsUiMouse && !s_uiMouseActive) {
+            ReleaseGameMouseCapture();
+            s_uiMouseActive = true;
+        } else if (!needsUiMouse && s_uiMouseActive) {
+            const bool inGame = screenKind == myiui::shared::ScreenKind::InGame;
+            RestoreGameMouseCapture(inGame);
+            s_uiMouseActive = false;
         }
-        s_clickguiWasOpen = nowOpen;
     }
 
     if (overlayActive != g_wasMenuActive) {
@@ -296,10 +364,9 @@ static void RenderOverlayFrame(HWND hwnd) {
         g_menuOverlayAcked = true;
     }
 
-    if (overlayActive) {
+    if (overlayActive || clickguiOpen) {
         ResumeOverlayInput();
     }
-    // Keep WndProc hooked even in-game for ClickGui key detection
 
     TryInstallGlfwHook();
 
@@ -525,7 +592,7 @@ static void __stdcall Hook_glfwSwapBuffers(void* window) {
 static DWORD WINAPI InitThread(LPVOID) {
     Sleep(1000);
     myiui::jvm::RunJvmSpike();
-    myiui::jvm::SpikeLog(L"[build] myiui-overlay v2 2026-07-02i");
+    myiui::jvm::SpikeLog(L"[build] myiui-overlay v2 multiver 2026-07-04");
     myiui::inject::InstallGameHook();
 
     const MH_STATUS mhInit = MH_Initialize();

@@ -15,10 +15,20 @@ repositories {
     mavenCentral()
 }
 
+val javacvVersion = "1.5.11"
+val ffmpegVersion = "6.1.1-$javacvVersion"
+
 dependencies {
     compileOnly("org.ow2.asm:asm:9.7.1")
     compileOnly("org.ow2.asm:asm-commons:9.7.1")
-    implementation("org.bytedeco:javacv-platform:1.5.11")
+    // win-x64 release only — avoid javacv-platform (~600MB all-OS natives)
+    implementation("org.bytedeco:javacv:$javacvVersion") {
+        exclude(group = "org.bytedeco", module = "ffmpeg-platform")
+        exclude(group = "org.bytedeco", module = "openblas-platform")
+        exclude(group = "org.bytedeco", module = "opencv-platform")
+    }
+    implementation("org.bytedeco:ffmpeg:$ffmpegVersion")
+    runtimeOnly("org.bytedeco:ffmpeg:$ffmpegVersion:windows-x86_64")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.google.zxing:javase:3.5.3")

@@ -5,7 +5,8 @@ import com.myiui.agent.AgentLog;
 /**
  * Runtime Minecraft version detection.
  *
- * <p>The agent is a single jar that must run on every Fabric 1.21.x client. Because Fabric
+ * <p>The agent is a single jar that must run on every Fabric 1.21 client (1.21 through 1.21.11).
+ * Because Fabric
  * intermediary names are stable across versions, the primary compatibility mechanism is the
  * "try every known candidate" lookup in {@code ReflectUtil}. This class is the auxiliary layer:
  * it resolves the concrete game version (e.g. {@code "1.21.4"}) so we can log which profile is
@@ -40,7 +41,19 @@ public final class McVersion {
         detected = major > 0;
         if (detected) {
             AgentLog.info("McVersion detected: " + raw + " -> " + major + "." + minor + "." + patch);
+            if (!isSupportedFabric121()) {
+                AgentLog.error("Unsupported MC version for this build: " + raw
+                        + " (supported: Fabric 1.21 - 1.21.11)");
+            }
         }
+    }
+
+    /** True when detected version is within the supported Fabric 1.21 - 1.21.11 range. */
+    public static boolean isSupportedFabric121() {
+        if (!detected) {
+            return true;
+        }
+        return major == 1 && minor == 21 && patch >= 0 && patch <= 11;
     }
 
     private static void parse(String s) {

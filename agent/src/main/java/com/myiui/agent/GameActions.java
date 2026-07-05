@@ -490,17 +490,6 @@ public final class GameActions {
             return null;
         }
 
-        ReflectUtil.findInstanceMethod(manager.getClass(), "scanPacks", "method_14445").invoke(manager);
-        Object options = getGameOptionsInternal(client);
-        if (options != null) {
-            try {
-                Method addProfiles = ReflectUtil.findInstanceMethod(options.getClass(),
-                        "addResourcePackProfilesToManager", "method_1627", manager.getClass());
-                addProfiles.invoke(options, manager);
-            } catch (ReflectiveOperationException ignored) {
-            }
-        }
-
         java.util.List<String> enabled = new java.util.ArrayList<>();
         java.util.List<String> disabled = new java.util.ArrayList<>();
         java.util.Set<String> enabledSet = new java.util.LinkedHashSet<>();

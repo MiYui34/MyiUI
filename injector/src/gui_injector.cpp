@@ -7,68 +7,62 @@
 #include <imgui.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <mutex>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace {
 
-constexpr float kLogH = 120.f;
-constexpr float kStatusW = 228.f;
-constexpr float kInjectDuration = 3.f;
-constexpr float kAutoRefreshSec = 8.f;
+// ─────────────────────────────────────────────────────────────────────────────
+//  Palette — dark glassmorphism, consistent with the in-game overlay theme.
+// ─────────────────────────────────────────────────────────────────────────────
+struct Palette {
+    ImU32 bgTop = IM_COL32(20, 24, 34, 255);
+    ImU32 bgBottom = IM_COL32(10, 12, 18, 255);
+    ImU32 glow = IM_COL32(84, 140, 230, 46);
 
-struct Theme {
-    ImVec4 bg{0.10f, 0.11f, 0.15f, 1.f};
-    ImVec4 surface{0.14f, 0.15f, 0.20f, 0.92f};
-    ImVec4 glass{0.14f, 0.15f, 0.20f, 0.72f};
-    ImVec4 fg{0.96f, 0.97f, 0.99f, 1.f};
-    ImVec4 muted{0.58f, 0.61f, 0.67f, 1.f};
-    ImVec4 border{0.38f, 0.42f, 0.50f, 0.35f};
-    ImVec4 accent{0.45f, 0.68f, 1.00f, 1.f};
-    ImVec4 accentSoft{0.45f, 0.68f, 1.00f, 0.18f};
-    ImVec4 success{0.42f, 0.78f, 0.55f, 1.f};
-    ImVec4 danger{0.88f, 0.42f, 0.38f, 1.f};
-    ImVec4 warn{0.92f, 0.74f, 0.38f, 1.f};
-    ImVec4 fgSoft{1.f, 1.f, 1.f, 0.06f};
+    ImU32 card = IM_COL32(25, 29, 40, 232);
+    ImU32 cardInset = IM_COL32(0, 0, 0, 46);
+    ImU32 soft = IM_COL32(255, 255, 255, 12);
+    ImU32 border = IM_COL32(122, 142, 178, 44);
+    ImU32 highlight = IM_COL32(255, 255, 255, 18);
+
+    ImU32 text = IM_COL32(238, 241, 247, 255);
+    ImU32 muted = IM_COL32(151, 159, 174, 255);
+    ImU32 faint = IM_COL32(108, 116, 132, 255);
+
+    ImU32 accent = IM_COL32(96, 170, 255, 255);
+    ImU32 accentHi = IM_COL32(132, 192, 255, 255);
+    ImU32 accentLo = IM_COL32(70, 138, 236, 255);
+    ImU32 accentSoft = IM_COL32(96, 170, 255, 40);
+    ImU32 onAccent = IM_COL32(14, 20, 32, 255);
+
+    ImU32 ok = IM_COL32(120, 212, 152, 255);
+    ImU32 warn = IM_COL32(240, 196, 112, 255);
+    ImU32 err = IM_COL32(240, 122, 112, 255);
+
+    ImU32 rowHover = IM_COL32(255, 255, 255, 14);
+    ImU32 rowSel = IM_COL32(96, 170, 255, 34);
+    ImU32 rowSelBar = IM_COL32(96, 170, 255, 255);
 };
 
-Theme gTheme;
+Palette P;
 
-ImVec4 LogColor(myiui::injector_ui::LogLevel level) {
-    switch (level) {
-        case myiui::injector_ui::LogLevel::Ok:
-            return ImVec4(0.55f, 0.88f, 0.62f, 1.f);
-        case myiui::injector_ui::LogLevel::Warn:
-            return ImVec4(0.95f, 0.78f, 0.45f, 1.f);
-        case myiui::injector_ui::LogLevel::Err:
-            return ImVec4(0.95f, 0.50f, 0.45f, 1.f);
-        default:
-            return gTheme.fg;
-    }
-}
+constexpr float kPad = 22.f;
+constexpr float kTopBarH = 60.f;
+constexpr float kGap = 16.f;
+constexpr float kRightColW = 322.f;
+constexpr float kLogConsoleH = 158.f;
+constexpr float kFooterH = 22.f;
+constexpr float kAutoRefreshSec = 8.f;
 
-bool IsMcProcess(const myiui::JavaProcessInfo& proc) {
-    auto lower = proc.commandLine;
-    for (wchar_t& c : lower) {
-        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
-    }
-    if (lower.find(L"net.minecraft") != std::wstring::npos) return true;
-    if (lower.find(L"minecraft") != std::wstring::npos) return true;
-    return proc.recommended && lower.find(L"minecraft") != std::wstring::npos;
-}
-
-std::wstring BuildTag(const myiui::JavaProcessInfo& proc) {
-    std::wstring tag = proc.hint.empty() ? L"Java 进程" : proc.hint;
-    if (proc.javaMajor > 0 && tag.find(L"JDK") == std::wstring::npos) {
-        tag += L" · JDK " + std::to_wstring(proc.javaMajor);
-    }
-    if (IsMcProcess(proc) && tag.find(L"MC") == std::wstring::npos) {
-        tag += L" · MC";
-    }
-    return tag;
-}
+// ─────────────────────────────────────────────────────────────────────────────
+//  Small helpers
+// ─────────────────────────────────────────────────────────────────────────────
+ImVec4 U32ToVec4(ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c); }
 
 std::string WideToUtf8(const std::wstring& text) {
     if (text.empty()) return {};
@@ -80,15 +74,166 @@ std::string WideToUtf8(const std::wstring& text) {
     return out;
 }
 
+ImVec2 MeasureText(const char* txt, float size) {
+    ImFont* f = ImGui::GetFont();
+    if (size <= 0.f) size = f->FontSize;
+    return f->CalcTextSizeA(size, FLT_MAX, 0.f, txt);
+}
+
+void DrawText(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* txt, float size = 0.f) {
+    ImFont* f = ImGui::GetFont();
+    if (size <= 0.f) size = f->FontSize;
+    dl->AddText(f, size, pos, col, txt);
+}
+
+void DrawTextCentered(ImDrawList* dl, ImVec2 center, ImU32 col, const char* txt, float size = 0.f) {
+    const ImVec2 ts = MeasureText(txt, size);
+    DrawText(dl, ImVec2(center.x - ts.x * 0.5f, center.y - ts.y * 0.5f), col, txt, size);
+}
+
+ImU32 LogColor(myiui::injector_ui::LogLevel level) {
+    switch (level) {
+        case myiui::injector_ui::LogLevel::Ok:
+            return P.ok;
+        case myiui::injector_ui::LogLevel::Warn:
+            return P.warn;
+        case myiui::injector_ui::LogLevel::Err:
+            return P.err;
+        default:
+            return P.text;
+    }
+}
+
+bool IsMcProcess(const myiui::JavaProcessInfo& proc) {
+    auto lower = proc.commandLine;
+    for (wchar_t& c : lower) {
+        if (c >= L'A' && c <= L'Z') c = static_cast<wchar_t>(c - L'A' + L'a');
+    }
+    return lower.find(L"minecraft") != std::wstring::npos;
+}
+
+std::wstring BuildTag(const myiui::JavaProcessInfo& proc) {
+    std::wstring tag = proc.hint.empty() ? L"Java 进程" : proc.hint;
+    if (proc.javaMajor > 0 && tag.find(L"JDK") == std::wstring::npos) {
+        tag += L" · JDK " + std::to_wstring(proc.javaMajor);
+    }
+    return tag;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Card & control primitives
+// ─────────────────────────────────────────────────────────────────────────────
+void DrawVerticalGradient(ImDrawList* dl, ImVec2 mn, ImVec2 mx, ImU32 top, ImU32 bottom) {
+    dl->AddRectFilledMultiColor(mn, mx, top, top, bottom, bottom);
+}
+
+void DrawCard(ImDrawList* dl, ImVec2 mn, ImVec2 mx, float rounding = 14.f) {
+    dl->AddRectFilled(mn, mx, P.card, rounding);
+    dl->AddRect(mn, mx, P.border, rounding, 0, 1.f);
+    // top inner highlight for a subtle glass edge
+    dl->AddLine(ImVec2(mn.x + rounding * 0.6f, mn.y + 1.f), ImVec2(mx.x - rounding * 0.6f, mn.y + 1.f), P.highlight,
+                1.f);
+}
+
+// A quiet, bordered button (refresh / auto-refresh / clear).
+bool GhostButton(const char* id, const char* label, ImVec2 pos, ImVec2 size, bool active = false,
+                 bool disabled = false) {
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::BeginDisabled(disabled);
+    ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool activated = ImGui::IsItemActivated();
+    ImGui::EndDisabled();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 mx(pos.x + size.x, pos.y + size.y);
+    ImU32 bg = active ? P.accentSoft : (hovered ? P.soft : IM_COL32(0, 0, 0, 0));
+    ImU32 bd = active ? P.accent : (hovered ? P.border : IM_COL32(122, 142, 178, 26));
+    ImU32 fg = disabled ? P.faint : (active ? P.accentHi : (hovered ? P.text : P.muted));
+    dl->AddRectFilled(pos, mx, bg, 8.f);
+    dl->AddRect(pos, mx, bd, 8.f, 0, 1.f);
+    DrawTextCentered(dl, ImVec2((pos.x + mx.x) * 0.5f, (pos.y + mx.y) * 0.5f), fg, label);
+    return activated && !disabled;
+}
+
+// The primary call-to-action (inject).
+bool PrimaryButton(const char* id, const char* label, ImVec2 pos, ImVec2 size, bool disabled) {
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::BeginDisabled(disabled);
+    ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool held = ImGui::IsItemActive();
+    const bool activated = ImGui::IsItemActivated();
+    ImGui::EndDisabled();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 mx(pos.x + size.x, pos.y + size.y);
+    const float rounding = 12.f;
+
+    if (!disabled) {
+        const float pulse = 0.32f + 0.16f * std::sin(static_cast<float>(ImGui::GetTime()) * 3.0f);
+        for (int i = 3; i >= 1; --i) {
+            ImVec4 c = U32ToVec4(P.accent);
+            c.w = 0.11f * pulse / static_cast<float>(i);
+            const float e = 4.f * static_cast<float>(i);
+            dl->AddRectFilled(ImVec2(pos.x - e, pos.y - e), ImVec2(mx.x + e, mx.y + e),
+                              ImGui::ColorConvertFloat4ToU32(c), rounding + e);
+        }
+    }
+
+    ImU32 fill = disabled ? IM_COL32(58, 66, 84, 150) : (hovered ? P.accentHi : P.accent);
+    const float sink = held ? 1.f : 0.f;
+    dl->AddRectFilled(ImVec2(pos.x, pos.y + sink), ImVec2(mx.x, mx.y + sink), fill, rounding);
+    if (!disabled) {
+        dl->AddLine(ImVec2(pos.x + rounding, pos.y + 1.f + sink), ImVec2(mx.x - rounding, pos.y + 1.f + sink),
+                    IM_COL32(255, 255, 255, 60), 1.f);
+    }
+    const ImU32 fg = disabled ? P.faint : P.onAccent;
+    DrawTextCentered(dl, ImVec2((pos.x + mx.x) * 0.5f, (pos.y + mx.y) * 0.5f + sink), fg, label);
+    return activated && !disabled;
+}
+
+void DrawStatusPill(ImDrawList* dl, ImVec2 pos, ImU32 dotColor, const char* text, bool pulse) {
+    const ImVec2 ts = MeasureText(text, 0.f);
+    const float h = ts.y + 10.f;
+    const float w = ts.x + 34.f;
+    const ImVec2 mx(pos.x + w, pos.y + h);
+    dl->AddRectFilled(pos, mx, P.soft, h * 0.5f);
+    dl->AddRect(pos, mx, P.border, h * 0.5f, 0, 1.f);
+    const float a = pulse ? (0.55f + 0.45f * std::sin(static_cast<float>(ImGui::GetTime()) * 6.0f)) : 1.f;
+    ImVec4 dc = U32ToVec4(dotColor);
+    dc.w = a;
+    dl->AddCircleFilled(ImVec2(pos.x + 14.f, (pos.y + mx.y) * 0.5f), 4.f, ImGui::ColorConvertFloat4ToU32(dc));
+    DrawText(dl, ImVec2(pos.x + 26.f, pos.y + 5.f), P.text, text);
+}
+
+void DrawBadge(ImDrawList* dl, ImVec2 pos, const char* text, ImU32 fg, ImU32 bg) {
+    const ImVec2 ts = MeasureText(text, 0.f);
+    const ImVec2 mx(pos.x + ts.x + 12.f, pos.y + ts.y + 6.f);
+    dl->AddRectFilled(pos, mx, bg, 5.f);
+    DrawText(dl, ImVec2(pos.x + 6.f, pos.y + 3.f), fg, text);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  State helpers (log / toast / selection / injection)
+// ─────────────────────────────────────────────────────────────────────────────
 void ShowToast(myiui::injector_ui::GuiState& state, const std::wstring& msg, bool isError) {
     state.toastMessage = msg;
     state.toastError = isError;
     state.toastTimer = isError ? 3.6f : 2.8f;
 }
 
+std::wstring CurrentLogTimestamp() {
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    wchar_t ts[16]{};
+    swprintf(ts, 16, L"%02u:%02u:%02u", st.wHour, st.wMinute, st.wSecond);
+    return ts;
+}
+
 void AppendLog(myiui::injector_ui::GuiState& state, const std::wstring& line, myiui::injector_ui::LogLevel level) {
     std::lock_guard<std::mutex> lock(state.logMutex);
-    state.logs.push_back({line, level});
+    state.logs.push_back({line, CurrentLogTimestamp(), level});
     if (state.logs.size() > 400) {
         state.logs.erase(state.logs.begin(), state.logs.begin() + 100);
     }
@@ -97,16 +242,16 @@ void AppendLog(myiui::injector_ui::GuiState& state, const std::wstring& line, my
 void UpdateSelectionUi(myiui::injector_ui::GuiState& state) {
     if (state.selectedIndex < 0 || state.selectedIndex >= static_cast<int>(state.processes.size())) {
         state.pillState = myiui::injector_ui::PillState::Idle;
-        state.pillText = L"未选择";
+        state.pillText = L"未选择目标";
         return;
     }
     const auto& proc = state.processes[state.selectedIndex];
     if (state.injectedPid == proc.pid) {
         state.pillState = myiui::injector_ui::PillState::Success;
-        state.pillText = L"已注入 · " + myiui::FormatMemory(proc.workingSetBytes);
+        state.pillText = L"已注入";
     } else {
         state.pillState = myiui::injector_ui::PillState::Ready;
-        state.pillText = L"已选中 · " + myiui::FormatMemory(proc.workingSetBytes);
+        state.pillText = L"已就绪";
     }
 }
 
@@ -114,11 +259,6 @@ void CancelInjection(myiui::injector_ui::GuiState& state) {
     state.injectCancel.store(true);
     state.injectFinished.store(false);
     state.injecting = false;
-    state.injectDismissPending = false;
-    state.injectOverlayAlpha = 0.f;
-    state.injectPanelScale = 0.88f;
-    state.injectProgressVisual = 0.f;
-    state.injectStep = -1;
     state.injectorState = L"就绪";
     state.injectorMeta = L"注入已取消";
     UpdateSelectionUi(state);
@@ -128,25 +268,13 @@ void CancelInjection(myiui::injector_ui::GuiState& state) {
 
 void FinishInjectionUi(myiui::injector_ui::GuiState& state, bool ok) {
     state.injecting = false;
-    state.injectDismissPending = false;
-    state.injectOverlayAlpha = 0.f;
-    state.injectPanelScale = 0.88f;
-    state.injectProgressVisual = 0.f;
-    state.injectStep = -1;
     if (ok) {
         state.injectedPid = state.injectTargetPid;
-        state.injectorState = L"就绪";
-        state.injectorMeta = L"Agent 已挂载 · Overlay 待写入";
+        state.injectorState = L"已注入";
+        state.injectorMeta = L"Agent 已挂载 · 进入游戏即可使用";
         state.pillState = myiui::injector_ui::PillState::Success;
-        if (state.selectedIndex >= 0 && state.selectedIndex < static_cast<int>(state.processes.size())) {
-            const auto& proc = state.processes[state.selectedIndex];
-            state.pillText = L"已注入 · " + myiui::FormatMemory(proc.workingSetBytes);
-        }
-        wchar_t buf[16]{};
-        SYSTEMTIME st{};
-        GetLocalTime(&st);
-        swprintf(buf, 16, L"%02u:%02u:%02u", st.wHour, st.wMinute, st.wSecond);
-        state.lastInjectTime = buf;
+        state.pillText = L"已注入";
+        state.lastInjectTime = CurrentLogTimestamp();
         AppendLog(state, L"[MyiUI] 注入流程完成，PID " + std::to_wstring(state.injectTargetPid),
                   myiui::injector_ui::LogLevel::Ok);
         ShowToast(state, L"MyiUI 注入成功", false);
@@ -154,7 +282,7 @@ void FinishInjectionUi(myiui::injector_ui::GuiState& state, bool ok) {
         state.pillState = myiui::injector_ui::PillState::Error;
         state.pillText = L"注入失败";
         state.injectorState = L"失败";
-        state.injectorMeta = L"请查看运行日志并以管理员身份重试";
+        state.injectorMeta = L"请查看日志并尝试以管理员身份运行";
         AppendLog(state, L"[MyiUI] 注入失败 PID " + std::to_wstring(state.injectTargetPid),
                   myiui::injector_ui::LogLevel::Err);
         ShowToast(state, L"注入失败 — 请查看日志", true);
@@ -168,13 +296,6 @@ void StartInjection(myiui::injector_ui::GuiState& state) {
     state.injectCancel.store(false);
     state.injectFinished.store(false);
     state.injectTargetPid = pid;
-    state.injectStep = 0;
-    state.injectAnim = 0.f;
-    state.injectOverlayAlpha = 0.f;
-    state.injectProgressVisual = 0.f;
-    state.injectPanelScale = 0.88f;
-    state.injectDismissPending = false;
-    state.injectFlash = false;
     state.pillState = myiui::injector_ui::PillState::Loading;
     state.pillText = L"注入中…";
     state.injectorState = L"注入中";
@@ -194,340 +315,6 @@ void StartInjection(myiui::injector_ui::GuiState& state) {
         gui->injectSuccess.store(ok);
         gui->injectFinished.store(true);
     }).detach();
-}
-
-void DrawRoundedRect(ImDrawList* dl, ImVec2 min, ImVec2 max, ImU32 col, float rounding, float thickness = 0.f) {
-    if (thickness > 0.f) {
-        dl->AddRect(min, max, col, rounding, 0, thickness);
-    } else {
-        dl->AddRectFilled(min, max, col, rounding);
-    }
-}
-
-void DrawGlassPanel(ImDrawList* dl, ImVec2 min, ImVec2 max) {
-    DrawRoundedRect(dl, min, max, ImGui::ColorConvertFloat4ToU32(gTheme.glass), 14.f);
-    dl->AddRect(min, max, ImGui::ColorConvertFloat4ToU32(gTheme.border), 14.f, 0, 1.f);
-    dl->AddLine(ImVec2(min.x + 1.f, min.y + 1.f), ImVec2(max.x - 1.f, min.y + 1.f),
-                IM_COL32(255, 255, 255, 18), 1.f);
-}
-
-bool DrawSmallButton(const char* id, const char* label, ImVec2 pos, ImVec2 size, bool active = false,
-                     bool disabled = false) {
-    ImGui::SetCursorScreenPos(pos);
-    ImGui::BeginDisabled(disabled);
-    ImGui::InvisibleButton(id, size);
-    const bool hovered = ImGui::IsItemHovered();
-    const bool activated = ImGui::IsItemActivated();
-    ImGui::EndDisabled();
-    ImDrawList* wdl = ImGui::GetWindowDrawList();
-    const ImU32 border = ImGui::ColorConvertFloat4ToU32(active ? gTheme.fg : (hovered ? gTheme.fg : gTheme.border));
-    const ImU32 text = ImGui::ColorConvertFloat4ToU32(disabled ? ImVec4(gTheme.muted.x, gTheme.muted.y, gTheme.muted.z, 0.5f)
-                                                                 : (active || hovered ? gTheme.fg : gTheme.muted));
-    wdl->AddRect(ImVec2(pos.x, pos.y), ImVec2(pos.x + size.x, pos.y + size.y), border, 7.f, 0, 1.f);
-    const ImVec2 ts = ImGui::CalcTextSize(label);
-    wdl->AddText(ImVec2(pos.x + (size.x - ts.x) * 0.5f, pos.y + (size.y - ts.y) * 0.5f), text, label);
-    return activated && !disabled;
-}
-
-void DrawPill(ImDrawList* dl, ImVec2 pos, myiui::injector_ui::PillState state, const std::wstring& text) {
-    const ImVec2 ts = ImGui::CalcTextSize(WideToUtf8(text).c_str());
-    const float padX = 10.f;
-    const float padY = 4.f;
-    const ImVec2 min = pos;
-    const ImVec2 max = ImVec2(pos.x + ts.x + padX * 2.f + 14.f, pos.y + ts.y + padY * 2.f);
-    dl->AddRectFilled(min, max, ImGui::ColorConvertFloat4ToU32(gTheme.fgSoft), 999.f);
-    ImVec4 dot = gTheme.accent;
-    switch (state) {
-        case myiui::injector_ui::PillState::Idle:
-            dot = gTheme.muted;
-            break;
-        case myiui::injector_ui::PillState::Ready:
-            dot = gTheme.success;
-            break;
-        case myiui::injector_ui::PillState::Success:
-            dot = gTheme.success;
-            break;
-        case myiui::injector_ui::PillState::Error:
-            dot = gTheme.danger;
-            break;
-        case myiui::injector_ui::PillState::Loading:
-            dot = gTheme.accent;
-            break;
-    }
-    const float pulse = state == myiui::injector_ui::PillState::Loading
-                            ? (0.55f + 0.45f * std::sin(ImGui::GetTime() * 6.28f))
-                            : 1.f;
-    dl->AddCircleFilled(ImVec2(min.x + 10.f, (min.y + max.y) * 0.5f), 3.5f,
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(dot.x, dot.y, dot.z, pulse)));
-    dl->AddText(ImVec2(min.x + 20.f, min.y + padY), ImGui::ColorConvertFloat4ToU32(gTheme.fg),
-                WideToUtf8(text).c_str());
-}
-
-float LerpF(float a, float b, float t) { return a + (b - a) * t; }
-
-float EaseOutCubic(float t) { return 1.f - std::pow(1.f - t, 3.f); }
-
-void DrawFrostedBackdrop(ImDrawList* dl, ImVec2 min, ImVec2 max, float alpha, float time) {
-    const int baseA = static_cast<int>(210 * alpha);
-    dl->AddRectFilled(min, max, IM_COL32(8, 10, 18, baseA));
-
-    const ImVec2 size = ImVec2(max.x - min.x, max.y - min.y);
-    const ImVec2 center = ImVec2((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
-
-    for (int i = 0; i < 5; ++i) {
-        const float phase = time * (0.15f + i * 0.04f) + i * 1.7f;
-        const float rx = size.x * (0.22f + 0.06f * i);
-        const float ry = size.y * (0.18f + 0.05f * i);
-        const ImVec2 c(center.x + std::sin(phase) * 40.f, center.y + std::cos(phase * 0.9f) * 28.f);
-        dl->AddRectFilled(ImVec2(c.x - rx, c.y - ry), ImVec2(c.x + rx, c.y + ry),
-                          IM_COL32(70, 110, 180, static_cast<int>(18 * alpha)), rx);
-    }
-
-    const float gridStep = 14.f;
-    for (float y = min.y; y < max.y; y += gridStep) {
-        for (float x = min.x; x < max.x; x += gridStep) {
-            const float n = 0.5f + 0.5f * std::sin(x * 0.08f + y * 0.06f + time * 1.2f);
-            const int a = static_cast<int>(n * 10.f * alpha);
-            if (a < 2) continue;
-            dl->AddRectFilled(ImVec2(x, y), ImVec2(x + 2.f, y + 2.f), IM_COL32(255, 255, 255, a));
-        }
-    }
-
-    const float vignetteR = std::max(size.x, size.y) * 0.72f;
-    dl->AddCircleFilled(center, vignetteR, IM_COL32(0, 0, 0, static_cast<int>(90 * alpha)));
-
-    const float scanY = min.y + std::fmod(time * 120.f, size.y);
-    dl->AddRectFilledMultiColor(ImVec2(min.x, scanY), ImVec2(max.x, scanY + 3.f), IM_COL32(120, 168, 255, 0),
-                                IM_COL32(120, 168, 255, 0), IM_COL32(120, 168, 255, static_cast<int>(35 * alpha)),
-                                IM_COL32(120, 168, 255, static_cast<int>(35 * alpha)));
-}
-
-void DrawGlowRect(ImDrawList* dl, ImVec2 min, ImVec2 max, ImU32 col, float rounding, float expand) {
-    for (int i = 3; i >= 1; --i) {
-        const float e = expand * static_cast<float>(i);
-        ImVec4 c = ImGui::ColorConvertU32ToFloat4(col);
-        c.w *= 0.12f / static_cast<float>(i);
-        dl->AddRect(ImVec2(min.x - e, min.y - e), ImVec2(max.x + e, max.y + e), ImGui::ColorConvertFloat4ToU32(c),
-                    rounding + e, 0, 2.f);
-    }
-}
-
-void DrawInjectOverlay(myiui::injector_ui::GuiState& state, ImVec2 origin, ImVec2 size) {
-    const bool visible = state.injecting || state.injectDismissPending || state.injectOverlayAlpha > 0.01f;
-    if (!visible) return;
-
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    const ImVec2 min = origin;
-    const ImVec2 max = ImVec2(origin.x + size.x, origin.y + size.y);
-    const float alpha = state.injectOverlayAlpha;
-    const float time = static_cast<float>(ImGui::GetTime());
-    const float dt = ImGui::GetIO().DeltaTime;
-
-    DrawFrostedBackdrop(dl, min, max, alpha, time);
-
-    ImGui::PushID("InjectOverlay");
-    ImGui::SetCursorScreenPos(min);
-    ImGui::InvisibleButton("##blocker", size);
-    ImGui::PopID();
-
-    const ImVec2 center = ImVec2((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
-    state.injectAnim += dt;
-
-    const float stepDur = state.reduceMotion ? 0.2f : 0.85f;
-    if (state.injecting && state.injectStep >= 0 && state.injectStep < 4) {
-        const int targetStep = std::min(3, static_cast<int>(state.injectAnim / stepDur));
-        if (targetStep > state.injectStep) state.injectStep = targetStep;
-    }
-
-    const float pctTargets[] = {0.22f, 0.48f, 0.76f, 1.f};
-    const int step = std::clamp(state.injectStep, 0, 3);
-    const float pctTarget = pctTargets[step];
-    const float progressSpeed = state.reduceMotion ? 10.f : 5.f;
-    state.injectProgressVisual = LerpF(state.injectProgressVisual, pctTarget, std::min(1.f, dt * progressSpeed));
-    const float progress = state.injectProgressVisual;
-
-    if (state.injectDismissPending) {
-        state.injectPanelScale = 1.f;
-    } else {
-        const float panelSpeed = state.reduceMotion ? 12.f : 6.f;
-        state.injectPanelScale = LerpF(state.injectPanelScale, 1.f, std::min(1.f, dt * panelSpeed));
-        if (state.injecting && state.injectPanelScale < 0.98f) {
-            state.injectPanelScale =
-                LerpF(0.88f, 1.f, EaseOutCubic(std::min(1.f, state.injectAnim * 2.5f)));
-        }
-    }
-
-    const ImVec2 panelSize(580.f, 500.f);
-    const ImVec2 panelHalf(panelSize.x * 0.5f * state.injectPanelScale, panelSize.y * 0.5f * state.injectPanelScale);
-    const ImVec2 panelMin(center.x - panelHalf.x, center.y - panelHalf.y);
-    const ImVec2 panelMax(center.x + panelHalf.x, center.y + panelHalf.y);
-
-    DrawGlowRect(dl, panelMin, panelMax, ImGui::ColorConvertFloat4ToU32(gTheme.accent), 18.f, 4.f);
-    dl->AddRectFilled(panelMin, panelMax, IM_COL32(22, 26, 36, static_cast<int>(235 * alpha)), 18.f);
-    dl->AddRect(panelMin, panelMax, IM_COL32(120, 168, 255, static_cast<int>(80 * alpha)), 18.f, 0, 1.5f);
-
-    dl->PushClipRect(panelMin, panelMax, true);
-
-    const char* header = state.injectDismissPending && state.injectDismissOk ? "注入成功" : "正在注入 MyiUI";
-    const ImVec2 headerSize = ImGui::CalcTextSize(header);
-    dl->AddText(ImVec2(center.x - headerSize.x * 0.5f, panelMin.y + 20.f),
-                IM_COL32(245, 247, 252, static_cast<int>(255 * alpha)), header);
-
-    // ── 固定行高布局（自上而下，互不重叠）──
-    constexpr float kNodeSize = 64.f;
-    constexpr float kBeamW = 132.f;
-    constexpr float kBeamGap = 14.f;
-    constexpr float kStageW = kNodeSize * 2.f + kBeamGap * 2.f + kBeamW;
-    const float stageLeft = center.x - kStageW * 0.5f;
-    const float rowNodesTop = panelMin.y + 56.f;
-    const float nodeCenterY = rowNodesTop + kNodeSize * 0.5f;
-
-    const float srcCenterX = stageLeft + kNodeSize * 0.5f;
-    const float dstCenterX = stageLeft + kStageW - kNodeSize * 0.5f;
-    const float beamLeft = stageLeft + kNodeSize + kBeamGap;
-    const float beamRight = beamLeft + kBeamW;
-    const float beamY = nodeCenterY;
-
-    // 1) 光束轨道（节点之间的独立区域）
-    dl->AddRectFilled(ImVec2(beamLeft, beamY - 2.f), ImVec2(beamRight, beamY + 2.f),
-                      IM_COL32(255, 255, 255, static_cast<int>(20 * alpha)), 2.f);
-    const float beamProgX = beamLeft + kBeamW * progress;
-    for (int g = 2; g >= 1; --g) {
-        const float h = 1.5f + g * 1.5f;
-        dl->AddRectFilled(ImVec2(beamLeft, beamY - h), ImVec2(beamProgX, beamY + h),
-                          IM_COL32(70, 130, 255, static_cast<int>(20 * alpha / g)), h);
-    }
-    dl->AddRectFilled(ImVec2(beamLeft, beamY - 1.5f), ImVec2(beamProgX, beamY + 1.5f),
-                      ImGui::ColorConvertFloat4ToU32(gTheme.accent), 2.f);
-    if (progress > 0.02f) {
-        dl->AddCircleFilled(ImVec2(beamProgX, beamY), 4.f, IM_COL32(200, 230, 255, static_cast<int>(220 * alpha)));
-    }
-    for (int i = 0; i < 6; ++i) {
-        const float t = std::fmod(state.injectAnim * (0.3f + i * 0.06f) + i * 0.14f, 1.f);
-        const float px = beamLeft + kBeamW * t;
-        if (px > beamProgX) continue;
-        dl->AddCircleFilled(ImVec2(px, beamY), 2.f, IM_COL32(140, 190, 255, static_cast<int>(160 * alpha)));
-    }
-
-    auto drawNode = [&](float cx, const char* glyph, const char* caption, bool highlight, bool agentLogo) {
-        const float half = kNodeSize * 0.5f;
-        const ImVec2 nmin(cx - half, rowNodesTop);
-        const ImVec2 nmax(cx + half, rowNodesTop + kNodeSize);
-        const InjectorLogoTexture& markLogo = GetInjectorMarkLogo();
-        const bool useLogo = agentLogo && markLogo.valid();
-
-        if (!useLogo) {
-            dl->AddRectFilled(nmin, nmax,
-                              highlight ? IM_COL32(32, 58, 42, 200) : ImGui::ColorConvertFloat4ToU32(gTheme.accentSoft),
-                              12.f);
-            dl->AddRect(nmin, nmax,
-                        highlight ? IM_COL32(90, 200, 120, 220) : ImGui::ColorConvertFloat4ToU32(gTheme.accent), 12.f,
-                        0, highlight ? 2.f : 1.f);
-        }
-
-        const ImVec2 capSize = ImGui::CalcTextSize(caption);
-        if (useLogo) {
-            constexpr float kCaptionH = 16.f;
-            const ImVec2 iconMax(nmax.x, nmax.y - kCaptionH);
-            DrawInjectorLogoFit(dl, markLogo, nmin, iconMax, alpha);
-            dl->AddText(ImVec2(cx - capSize.x * 0.5f, nmax.y - capSize.y - 3.f),
-                        ImGui::ColorConvertFloat4ToU32(gTheme.muted), caption);
-        } else {
-            const ImVec2 glyphSize = ImGui::CalcTextSize(glyph);
-            dl->AddText(ImVec2(cx - glyphSize.x * 0.5f, nodeCenterY - glyphSize.y * 0.5f - 6.f),
-                        IM_COL32(245, 247, 252, static_cast<int>(255 * alpha)), glyph);
-            dl->AddText(ImVec2(cx - capSize.x * 0.5f, nmax.y - capSize.y - 6.f),
-                        ImGui::ColorConvertFloat4ToU32(gTheme.muted), caption);
-        }
-    };
-
-    const bool receiving = step >= 2;
-    drawNode(srcCenterX, "M", "Agent", false, true);
-
-    std::string procCaption = "进程";
-    if (state.selectedIndex >= 0 && state.selectedIndex < static_cast<int>(state.processes.size())) {
-        procCaption = WideToUtf8(state.processes[state.selectedIndex].exeName);
-    }
-    drawNode(dstCenterX, "JVM", procCaption.c_str(), receiving, false);
-
-    // 2) 进度环（独立一行，与节点区留足间距）
-    const float ringR = 34.f;
-    const float ringCenterY = rowNodesTop + kNodeSize + 44.f + ringR;
-    const ImVec2 ringC(center.x, ringCenterY);
-    constexpr float kPi = 3.14159265358979323846f;
-
-    dl->PathClear();
-    dl->PathArcTo(ringC, ringR, 0.f, kPi * 2.f, 48);
-    dl->PathStroke(IM_COL32(255, 255, 255, static_cast<int>(30 * alpha)), 0, 3.f);
-    dl->PathClear();
-    dl->PathArcTo(ringC, ringR, -kPi * 0.5f, -kPi * 0.5f + kPi * 2.f * progress, 48);
-    dl->PathStroke(IM_COL32(120, 168, 255, static_cast<int>(255 * alpha)), 0, 4.f);
-
-    const int pctDisplay = (step >= 3 && progress > 0.95f) ? 100 : static_cast<int>(progress * 100.f);
-    char pctBuf[8];
-    snprintf(pctBuf, sizeof(pctBuf), "%d%%", pctDisplay);
-    const ImVec2 pctSize = ImGui::CalcTextSize(pctBuf);
-    dl->AddText(ImVec2(ringC.x - pctSize.x * 0.5f, ringC.y - pctSize.y * 0.5f),
-                IM_COL32(245, 247, 252, static_cast<int>(255 * alpha)), pctBuf);
-
-    // 3) 状态文案
-    const char* titles[] = {"连接进程", "映射内存", "加载 Agent", "验证完成"};
-    const char* subs[] = {"正在附加到目标 JVM…", "解析模块基址与导出表…", "写入 MyiUI payload…",
-                          "Agent 已挂载，可以进入游戏"};
-    const float statusTitleY = ringCenterY + ringR + 22.f;
-    dl->AddText(ImVec2(center.x - ImGui::CalcTextSize(titles[step]).x * 0.5f, statusTitleY),
-                IM_COL32(245, 247, 252, static_cast<int>(255 * alpha)), titles[step]);
-    dl->AddText(ImVec2(center.x - ImGui::CalcTextSize(subs[step]).x * 0.5f, statusTitleY + 22.f),
-                IM_COL32(160, 168, 182, static_cast<int>(255 * alpha)), subs[step]);
-
-    // 4) 步骤芯片（单行居中，无发光外扩）
-    const char* steps[] = {"连接进程", "映射内存", "加载 Agent", "验证完成"};
-    constexpr float kChipH = 24.f;
-    constexpr float kChipPadX = 8.f;
-    constexpr float kChipGap = 8.f;
-    float chipsTotalW = 0.f;
-    for (int i = 0; i < 4; ++i) {
-        chipsTotalW += ImGui::CalcTextSize(steps[i]).x + kChipPadX * 2.f;
-        if (i < 3) chipsTotalW += kChipGap;
-    }
-    float chipX = center.x - chipsTotalW * 0.5f;
-    const float chipY = statusTitleY + 52.f;
-    for (int i = 0; i < 4; ++i) {
-        const ImVec2 ts = ImGui::CalcTextSize(steps[i]);
-        const float chipW = ts.x + kChipPadX * 2.f;
-        const ImVec2 cmin(chipX, chipY);
-        const ImVec2 cmax(chipX + chipW, chipY + kChipH);
-        ImVec4 chipBg = gTheme.fgSoft;
-        ImVec4 chipFg = gTheme.muted;
-        ImVec4 chipBorder = gTheme.border;
-        if (i < step) {
-            chipFg = gTheme.success;
-        } else if (i == step) {
-            chipBg = gTheme.accentSoft;
-            chipFg = gTheme.accent;
-            chipBorder = gTheme.accent;
-        }
-        dl->AddRectFilled(cmin, cmax, ImGui::ColorConvertFloat4ToU32(chipBg), 5.f);
-        dl->AddRect(cmin, cmax, ImGui::ColorConvertFloat4ToU32(chipBorder), 5.f);
-        const ImVec2 chipTextSize = ImGui::CalcTextSize(steps[i]);
-        dl->AddText(ImVec2(chipX + kChipPadX, chipY + (kChipH - chipTextSize.y) * 0.5f),
-                    ImGui::ColorConvertFloat4ToU32(chipFg), steps[i]);
-        chipX += chipW + kChipGap;
-    }
-
-    dl->PopClipRect();
-
-    if (state.injecting && !state.injectDismissPending) {
-        const char* escHint = "按 Esc 可取消注入";
-        const ImVec2 escSize = ImGui::CalcTextSize(escHint);
-        dl->AddText(ImVec2(center.x - escSize.x * 0.5f, panelMax.y - 22.f),
-                    IM_COL32(160, 168, 182, static_cast<int>(220 * alpha)), escHint);
-    } else if (state.injectDismissPending && state.injectDismissOk) {
-        const char* dismissHint = "点击任意处或按 Esc 关闭";
-        const ImVec2 hintSize = ImGui::CalcTextSize(dismissHint);
-        dl->AddText(ImVec2(center.x - hintSize.x * 0.5f, panelMax.y - 22.f),
-                    IM_COL32(160, 168, 182, static_cast<int>(220 * alpha)), dismissHint);
-    }
 }
 
 void ApplyProcessList(myiui::injector_ui::GuiState& state, std::vector<myiui::JavaProcessInfo> processes, bool manual) {
@@ -556,7 +343,7 @@ void ApplyProcessList(myiui::injector_ui::GuiState& state, std::vector<myiui::Ja
         AppendLog(state, L"[MyiUI] 已刷新进程列表，当前 " + std::to_wstring(state.processes.size()) + L" 个 Java 进程",
                   myiui::injector_ui::LogLevel::Ok);
         if (state.processes.empty()) {
-            AppendLog(state, L"[MyiUI] 未发现 Java 进程。启动 Minecraft 并停在主菜单，然后点击刷新。",
+            AppendLog(state, L"[MyiUI] 未发现 Java 进程。启动 Minecraft 并停在主菜单后点击刷新。",
                       myiui::injector_ui::LogLevel::Warn);
         }
     }
@@ -564,7 +351,6 @@ void ApplyProcessList(myiui::injector_ui::GuiState& state, std::vector<myiui::Ja
 
 void PollScanResult(myiui::injector_ui::GuiState& state) {
     if (!state.scanResultReady) return;
-
     std::vector<myiui::JavaProcessInfo> processes;
     bool manual = false;
     {
@@ -574,9 +360,297 @@ void PollScanResult(myiui::injector_ui::GuiState& state) {
         manual = state.scanWasManual;
         state.scanResultReady = false;
     }
-
     state.refreshing = false;
     ApplyProcessList(state, std::move(processes), manual);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Sections
+// ─────────────────────────────────────────────────────────────────────────────
+void DrawTopBar(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    // Logo mark
+    const float logoSz = 40.f;
+    const ImVec2 logoMin(mn.x, mn.y + (mx.y - mn.y - logoSz) * 0.5f);
+    const ImVec2 logoMax(logoMin.x + logoSz, logoMin.y + logoSz);
+    const InjectorLogoTexture& logo = GetInjectorMarkLogo();
+    if (logo.valid()) {
+        DrawInjectorLogoFit(dl, logo, logoMin, logoMax, 1.f);
+    } else {
+        dl->AddRectFilled(logoMin, logoMax, P.accentSoft, 10.f);
+        dl->AddRect(logoMin, logoMax, P.accent, 10.f, 0, 1.f);
+        DrawTextCentered(dl, ImVec2((logoMin.x + logoMax.x) * 0.5f, (logoMin.y + logoMax.y) * 0.5f), P.text, "M", 22.f);
+    }
+
+    const float textX = logoMax.x + 14.f;
+    DrawText(dl, ImVec2(textX, mn.y + 8.f), P.text, "MyiUI Injector", 24.f);
+    DrawText(dl, ImVec2(textX, mn.y + 36.f), P.muted, "轻量级 Fabric 注入启动器", 15.f);
+
+    // Global status pill on the right
+    ImU32 dot = P.faint;
+    const char* label = "空闲";
+    if (state.injecting) {
+        dot = P.accent;
+        label = "注入中";
+    } else if (state.refreshing) {
+        dot = P.accent;
+        label = "扫描中";
+    } else if (state.injectedPid != 0) {
+        dot = P.ok;
+        label = "已注入";
+    } else if (!state.processes.empty()) {
+        dot = P.warn;
+        label = "待注入";
+    }
+    const ImVec2 pts = MeasureText(label, 0.f);
+    const float pillW = pts.x + 34.f;
+    DrawStatusPill(dl, ImVec2(mx.x - pillW, mn.y + (mx.y - mn.y - (pts.y + 10.f)) * 0.5f), dot, label,
+                   state.injecting || state.refreshing);
+}
+
+void DrawProcessPanel(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    DrawCard(dl, mn, mx);
+
+    DrawText(dl, ImVec2(mn.x + 16.f, mn.y + 13.f), P.text, "目标进程", 17.f);
+    {
+        char count[48];
+        snprintf(count, sizeof(count), "%d 个 Java 进程", static_cast<int>(state.processes.size()));
+        DrawText(dl, ImVec2(mn.x + 16.f, mn.y + 36.f), P.faint, count, 13.f);
+    }
+
+    // Toolbar buttons (top-right)
+    const float btnY = mn.y + 12.f;
+    if (GhostButton("##auto", state.autoRefresh ? "自动刷新 · 开" : "自动刷新 · 关",
+                    ImVec2(mx.x - 218.f, btnY), ImVec2(112.f, 30.f), state.autoRefresh)) {
+        state.autoRefresh = !state.autoRefresh;
+        state.autoRefreshAccum = 0.f;
+        AppendLog(state, std::wstring(L"[MyiUI] 自动刷新已") + (state.autoRefresh ? L"开启" : L"关闭"),
+                  myiui::injector_ui::LogLevel::Info);
+    }
+    if (GhostButton("##refresh", state.refreshing ? "刷新中…" : "刷新", ImVec2(mx.x - 98.f, btnY), ImVec2(82.f, 30.f),
+                    false, state.refreshing)) {
+        myiui::injector_ui::RefreshProcesses(state, true);
+    }
+
+    // Table region
+    const ImVec2 tblMin(mn.x + 12.f, mn.y + 54.f);
+    const ImVec2 tblMax(mx.x - 12.f, mx.y - 14.f);
+    dl->AddRectFilled(tblMin, tblMax, P.cardInset, 8.f);
+
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, U32ToVec4(P.rowHover));
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, U32ToVec4(P.rowHover));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_TableBorderLight, U32ToVec4(P.border));
+    ImGui::PushStyleColor(ImGuiCol_Text, U32ToVec4(P.text));
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(10.f, 8.f));
+
+    ImGui::SetCursorScreenPos(ImVec2(tblMin.x + 6.f, tblMin.y + 6.f));
+    ImGui::BeginChild("##proc_scroll", ImVec2(tblMax.x - tblMin.x - 12.f, tblMax.y - tblMin.y - 12.f), false);
+    if (state.processes.empty()) {
+        const float cx = (tblMax.x - tblMin.x) * 0.5f;
+        ImGui::Dummy(ImVec2(0.f, 26.f));
+        const char* l1 = "未发现 Java 进程";
+        const char* l2 = "启动 Minecraft 并停在主菜单，然后点击刷新";
+        ImGui::SetCursorPosX(cx - MeasureText(l1, 0.f).x * 0.5f);
+        ImGui::TextColored(U32ToVec4(P.muted), "%s", l1);
+        ImGui::SetCursorPosX(cx - MeasureText(l2, 0.f).x * 0.5f);
+        ImGui::TextColored(U32ToVec4(P.faint), "%s", l2);
+    } else if (ImGui::BeginTable("##procs", 4,
+                                 ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("进程", ImGuiTableColumnFlags_WidthStretch, 1.35f);
+        ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 66.f);
+        ImGui::TableSetupColumn("内存", ImGuiTableColumnFlags_WidthFixed, 70.f);
+        ImGui::TableSetupColumn("标识", ImGuiTableColumnFlags_WidthStretch, 1.55f);
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i < static_cast<int>(state.processes.size()); ++i) {
+            const auto& proc = state.processes[i];
+            const bool mc = IsMcProcess(proc);
+            const bool selected = i == state.selectedIndex;
+            const bool injected = state.injectedPid != 0 && proc.pid == state.injectedPid;
+
+            ImGui::PushID(i);
+            ImGui::TableNextRow(ImGuiTableRowFlags_None, 26.f);
+            if (selected) {
+                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, P.rowSel);
+            }
+
+            ImGui::TableSetColumnIndex(0);
+            if (ImGui::Selectable(WideToUtf8(proc.exeName).c_str(), selected,
+                                  ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
+                                  ImVec2(0.f, 22.f))) {
+                state.selectedIndex = i;
+                UpdateSelectionUi(state);
+                AppendLog(state, L"[MyiUI] 已选中 PID " + std::to_wstring(proc.pid),
+                          myiui::injector_ui::LogLevel::Info);
+            }
+            // Selection accent bar
+            if (selected) {
+                const ImVec2 rmin = ImGui::GetItemRectMin();
+                const ImVec2 rmax = ImGui::GetItemRectMax();
+                ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(rmin.x - 6.f, rmin.y + 2.f),
+                                                          ImVec2(rmin.x - 3.f, rmax.y - 2.f), P.rowSelBar, 2.f);
+            }
+
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextColored(U32ToVec4(P.muted), "%lu", proc.pid);
+
+            ImGui::TableSetColumnIndex(2);
+            ImGui::TextColored(U32ToVec4(P.muted), "%s", WideToUtf8(myiui::FormatMemory(proc.workingSetBytes)).c_str());
+
+            ImGui::TableSetColumnIndex(3);
+            if (mc) {
+                const ImVec2 cp = ImGui::GetCursorScreenPos();
+                DrawBadge(ImGui::GetWindowDrawList(), ImVec2(cp.x, cp.y + 1.f), "MC", P.onAccent, P.accent);
+                ImGui::SetCursorScreenPos(ImVec2(cp.x + 34.f, cp.y));
+            }
+            if (injected) {
+                const ImVec2 cp = ImGui::GetCursorScreenPos();
+                DrawBadge(ImGui::GetWindowDrawList(), ImVec2(cp.x, cp.y + 1.f), "已注入", P.onAccent, P.ok);
+                ImGui::SetCursorScreenPos(ImVec2(cp.x + 52.f, cp.y));
+            }
+            ImGui::TextColored(U32ToVec4(mc ? P.text : P.faint), "%s", WideToUtf8(BuildTag(proc)).c_str());
+
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    ImGui::EndChild();
+
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(5);
+}
+
+void DrawSidePanel(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    const float insetX = 14.f;
+    float y = mn.y + 14.f;
+
+    // ── Selected process detail card ──
+    const bool hasSel = state.selectedIndex >= 0 && state.selectedIndex < static_cast<int>(state.processes.size());
+    const float detailH = 118.f;
+    const ImVec2 dMin(mn.x + insetX, y);
+    const ImVec2 dMax(mx.x - insetX, y + detailH);
+    dl->AddRectFilled(dMin, dMax, P.soft, 10.f);
+    dl->AddRect(dMin, dMax, P.border, 10.f, 0, 1.f);
+    DrawText(dl, ImVec2(dMin.x + 12.f, dMin.y + 10.f), P.faint, "选中进程", 13.f);
+    if (hasSel) {
+        const auto& p = state.processes[state.selectedIndex];
+        DrawText(dl, ImVec2(dMin.x + 12.f, dMin.y + 30.f), P.text, WideToUtf8(p.exeName).c_str(), 18.f);
+        char meta[128];
+        snprintf(meta, sizeof(meta), "PID %lu · %s", p.pid, WideToUtf8(myiui::FormatMemory(p.workingSetBytes)).c_str());
+        DrawText(dl, ImVec2(dMin.x + 12.f, dMin.y + 56.f), P.muted, meta, 14.f);
+
+        ImU32 pdot = P.faint;
+        const char* ptext = "未选择目标";
+        switch (state.pillState) {
+            case myiui::injector_ui::PillState::Ready:
+                pdot = P.warn;
+                ptext = "已就绪 · 可注入";
+                break;
+            case myiui::injector_ui::PillState::Loading:
+                pdot = P.accent;
+                ptext = "注入中…";
+                break;
+            case myiui::injector_ui::PillState::Success:
+                pdot = P.ok;
+                ptext = "已注入";
+                break;
+            case myiui::injector_ui::PillState::Error:
+                pdot = P.err;
+                ptext = "注入失败";
+                break;
+            default:
+                break;
+        }
+        DrawStatusPill(dl, ImVec2(dMin.x + 12.f, dMin.y + 80.f), pdot, ptext,
+                       state.pillState == myiui::injector_ui::PillState::Loading);
+    } else {
+        DrawText(dl, ImVec2(dMin.x + 12.f, dMin.y + 34.f), P.muted, "请从左侧选择一个进程", 15.f);
+    }
+    y += detailH + 12.f;
+
+    // ── Primary CTA ──
+    const bool injected = hasSel && state.injectedPid != 0 &&
+                          state.processes[state.selectedIndex].pid == state.injectedPid;
+    const char* label = state.injecting ? "注入中…" : (injected ? "重新注入" : "注入 MyiUI");
+    const float ctaH = 46.f;
+    if (PrimaryButton("##inject", label, ImVec2(mn.x + insetX, y), ImVec2(mx.x - mn.x - insetX * 2.f, ctaH),
+                      !hasSel || state.injecting)) {
+        StartInjection(state);
+    }
+    y += ctaH + 8.f;
+    if (state.injecting) {
+        DrawTextCentered(dl, ImVec2((mn.x + mx.x) * 0.5f, y + 8.f), P.faint, "按 Esc 可取消", 13.f);
+    } else {
+        DrawTextCentered(dl, ImVec2((mn.x + mx.x) * 0.5f, y + 8.f), P.faint, "每次重启 MC 需重新注入", 13.f);
+    }
+    y += 26.f;
+
+    // ── Info rows ──
+    auto infoRow = [&](const char* label, const std::wstring& value, ImU32 valColor) {
+        const ImVec2 rMin(mn.x + insetX, y);
+        const ImVec2 rMax(mx.x - insetX, y + 44.f);
+        dl->AddRectFilled(rMin, rMax, P.soft, 8.f);
+        DrawText(dl, ImVec2(rMin.x + 12.f, rMin.y + 6.f), P.faint, label, 13.f);
+        DrawText(dl, ImVec2(rMin.x + 12.f, rMin.y + 23.f), valColor, WideToUtf8(value).c_str(), 15.f);
+        y += 44.f + 8.f;
+    };
+    ImU32 stateColor = P.text;
+    if (state.injectorState == L"失败") stateColor = P.err;
+    else if (state.injectorState == L"已注入") stateColor = P.ok;
+    else if (state.injectorState == L"注入中") stateColor = P.accent;
+    infoRow("注入器状态", state.injectorState + (state.injectorMeta.empty() ? L"" : L" · " + state.injectorMeta),
+            stateColor);
+    infoRow("上次注入", state.lastInjectTime, P.muted);
+}
+
+void DrawLogConsole(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    DrawCard(dl, mn, mx);
+    DrawText(dl, ImVec2(mn.x + 16.f, mn.y + 11.f), P.text, "运行日志", 16.f);
+
+    if (GhostButton("##clearlog", "清空", ImVec2(mx.x - 76.f, mn.y + 8.f), ImVec2(60.f, 26.f))) {
+        std::lock_guard<std::mutex> lock(state.logMutex);
+        state.logs.clear();
+    }
+
+    const ImVec2 logMin(mn.x + 12.f, mn.y + 40.f);
+    const ImVec2 logMax(mx.x - 12.f, mx.y - 12.f);
+    dl->AddRectFilled(logMin, logMax, P.cardInset, 8.f);
+
+    ImGui::SetCursorScreenPos(ImVec2(logMin.x + 8.f, logMin.y + 6.f));
+    ImGui::BeginChild("##logs", ImVec2(logMax.x - logMin.x - 16.f, logMax.y - logMin.y - 12.f), false);
+    {
+        std::lock_guard<std::mutex> lock(state.logMutex);
+        if (state.logs.empty()) {
+            ImGui::TextColored(U32ToVec4(P.faint), "暂无日志输出");
+        } else {
+            for (const auto& line : state.logs) {
+                ImGui::TextColored(U32ToVec4(P.faint), "%s", WideToUtf8(line.timestamp).c_str());
+                ImGui::SameLine();
+                ImGui::TextColored(U32ToVec4(LogColor(line.level)), "%s", WideToUtf8(line.text).c_str());
+            }
+            if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.f) {
+                ImGui::SetScrollHereY(1.f);
+            }
+        }
+    }
+    ImGui::EndChild();
+}
+
+void DrawToast(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 wp, ImVec2 ws) {
+    if (state.toastTimer <= 0.f || state.toastMessage.empty()) return;
+    const float appear = std::min(1.f, state.toastTimer * 3.f);
+    const std::string toast = WideToUtf8(state.toastMessage);
+    const ImVec2 ts = MeasureText(toast.c_str(), 0.f);
+    const float boxW = ts.x + 40.f;
+    const float boxH = ts.y + 22.f;
+    const ImVec2 mn(wp.x + (ws.x - boxW) * 0.5f, wp.y + ws.y - 64.f - boxH + (1.f - appear) * 16.f);
+    const ImVec2 mx(mn.x + boxW, mn.y + boxH);
+    const ImU32 accent = state.toastError ? P.err : P.ok;
+    dl->AddRectFilled(mn, mx, IM_COL32(28, 32, 44, 245), 10.f);
+    dl->AddRect(mn, mx, accent, 10.f, 0, 1.5f);
+    dl->AddCircleFilled(ImVec2(mn.x + 18.f, (mn.y + mx.y) * 0.5f), 4.f, accent);
+    DrawText(dl, ImVec2(mn.x + 32.f, mn.y + 11.f), P.text, toast.c_str());
 }
 
 }  // namespace
@@ -597,7 +671,7 @@ void Init(GuiState& state, HWND hwnd) {
 
 void QueueLog(GuiState& state, const std::wstring& line, LogLevel level) {
     std::lock_guard<std::mutex> lock(state.logMutex);
-    state.logs.push_back({line, level});
+    state.logs.push_back({line, CurrentLogTimestamp(), level});
 }
 
 void FlushPendingLogs(GuiState& state) {
@@ -611,12 +685,10 @@ void RefreshProcesses(GuiState& state, bool manual) {
     if (manual && state.refreshing) {
         return;
     }
-
     bool expected = false;
     if (!state.scanInFlight.compare_exchange_strong(expected, true)) {
         return;
     }
-
     const double now = ImGui::GetTime();
     if (state.lastRefreshTime > 0.0) {
         const double minInterval = manual ? 0.5 : static_cast<double>(kAutoRefreshSec);
@@ -626,11 +698,9 @@ void RefreshProcesses(GuiState& state, bool manual) {
         }
     }
     state.lastRefreshTime = now;
-
     if (manual) {
         state.refreshing = true;
     }
-
     state.scanPreservePid = 0;
     if (state.selectedIndex >= 0 && state.selectedIndex < static_cast<int>(state.processes.size())) {
         state.scanPreservePid = state.processes[state.selectedIndex].pid;
@@ -658,11 +728,7 @@ void Render(GuiState& state) {
 
     if (state.injectFinished.load()) {
         state.injectFinished.store(false);
-        if (state.injectCancel.load()) {
-            // 用户已取消，忽略后台线程迟到的完成信号
-        } else {
-            state.injecting = false;
-            state.injectOverlayAlpha = 0.f;
+        if (!state.injectCancel.load()) {
             FinishInjectionUi(state, state.injectSuccess.load());
         }
     }
@@ -679,268 +745,68 @@ void Render(GuiState& state) {
         state.autoRefreshAccum = 0.f;
     }
 
-    if (state.injecting) {
-        const float fadeInSpeed = state.reduceMotion ? 5.f : 3.5f;
-        state.injectOverlayAlpha = std::min(1.f, state.injectOverlayAlpha + dt * fadeInSpeed);
-    }
-
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && state.injecting && !state.injectDismissPending) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && state.injecting) {
         CancelInjection(state);
     }
 
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
     ImGuiWindowFlags rootFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
+                                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                                 ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoCollapse;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, gTheme.bg);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, U32ToVec4(P.bgBottom));
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, U32ToVec4(P.border));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, U32ToVec4(P.muted));
     ImGui::Begin("##InjectorRoot", nullptr, rootFlags);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 wp = ImGui::GetWindowPos();
     const ImVec2 ws = ImGui::GetWindowSize();
 
-    dl->AddRectFilledMultiColor(wp, ImVec2(wp.x + ws.x, wp.y + ws.y), IM_COL32(70, 110, 180, 25), IM_COL32(20, 24, 32, 0),
-                                IM_COL32(20, 24, 32, 0), IM_COL32(70, 110, 180, 15));
-
-    const float pad = 20.f;
-    const float bodyTop = wp.y + 16.f;
-    const float footerH = 20.f;
-    const float mainBottom = wp.y + ws.y - kLogH - footerH - 24.f;
-
-    const ImVec2 headerLogoMin(wp.x + pad, bodyTop);
-    const ImVec2 headerLogoMax(headerLogoMin.x + 36.f, bodyTop + 36.f);
-    const InjectorLogoTexture& headerLogo = GetInjectorMarkLogo();
-    if (headerLogo.valid()) {
-        DrawInjectorLogoFit(dl, headerLogo, headerLogoMin, headerLogoMax, 1.f);
-    } else {
-        dl->AddRectFilled(headerLogoMin, headerLogoMax, ImGui::ColorConvertFloat4ToU32(gTheme.fgSoft), 10.f);
-        dl->AddText(ImVec2(wp.x + pad + 11.f, bodyTop + 8.f), ImGui::ColorConvertFloat4ToU32(gTheme.fg), "M");
-    }
-    dl->AddText(ImVec2(wp.x + pad + 48.f, bodyTop + 4.f), ImGui::ColorConvertFloat4ToU32(gTheme.fg), "MyiUI");
-    dl->AddText(ImVec2(wp.x + pad + 48.f, bodyTop + 22.f), ImGui::ColorConvertFloat4ToU32(gTheme.muted),
-                "Injector · 启动器");
-
-    const float gridTop = bodyTop + 52.f;
-    const float gridH = mainBottom - gridTop;
-    const float procW = ws.x - pad * 2.f - kStatusW - 14.f;
-    const ImVec2 procMin(wp.x + pad, gridTop);
-    const ImVec2 procMax(procMin.x + procW, gridTop + gridH);
-    DrawGlassPanel(dl, procMin, procMax);
-
-    dl->AddText(ImVec2(procMin.x + 14.f, procMin.y + 12.f), ImGui::ColorConvertFloat4ToU32(gTheme.fg), "Java 进程");
-    if (DrawSmallButton("##refresh", state.refreshing ? "刷新中…" : "刷新",
-                        ImVec2(procMax.x - 168.f, procMin.y + 8.f), ImVec2(72.f, 28.f), false, state.refreshing)) {
-        RefreshProcesses(state, true);
-    }
-    if (DrawSmallButton("##auto", state.autoRefresh ? "自动刷新：开" : "自动刷新：关",
-                        ImVec2(procMax.x - 88.f, procMin.y + 8.f), ImVec2(74.f, 28.f), state.autoRefresh)) {
-        state.autoRefresh = !state.autoRefresh;
-        state.autoRefreshAccum = 0.f;
-        AppendLog(state, std::wstring(L"[MyiUI] 自动刷新已") + (state.autoRefresh ? L"开启" : L"关闭"), LogLevel::Info);
+    // Background gradient + top-left accent glow
+    DrawVerticalGradient(dl, wp, ImVec2(wp.x + ws.x, wp.y + ws.y), P.bgTop, P.bgBottom);
+    for (int i = 0; i < 4; ++i) {
+        ImVec4 g = U32ToVec4(P.glow);
+        g.w *= (1.f - i * 0.22f);
+        dl->AddCircleFilled(ImVec2(wp.x + ws.x * 0.14f, wp.y - 40.f), 220.f + i * 60.f,
+                            ImGui::ColorConvertFloat4ToU32(g));
     }
 
-    const ImVec2 tableMin(procMin.x + 1.f, procMin.y + 44.f);
-    const ImVec2 tableMax(procMax.x - 1.f, procMax.y - 96.f);
-    dl->AddRectFilled(tableMin, tableMax, IM_COL32(0, 0, 0, 20), 0.f);
+    const float x0 = wp.x + kPad;
+    const float x1 = wp.x + ws.x - kPad;
+    const float y0 = wp.y + kPad;
+    const float y1 = wp.y + ws.y - kPad;
 
-    ImGui::SetCursorScreenPos(ImVec2(tableMin.x + 8.f, tableMin.y + 6.f));
-    ImGui::BeginChild("##proc_table", ImVec2(tableMax.x - tableMin.x - 16.f, tableMax.y - tableMin.y - 12.f), false);
-    if (ImGui::BeginTable("##procs", 4,
-                          ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_ScrollY |
-                              ImGuiTableFlags_SizingStretchProp)) {
-        ImGui::TableSetupColumn("进程", ImGuiTableColumnFlags_WidthStretch, 1.2f);
-        ImGui::TableSetupColumn("PID", ImGuiTableColumnFlags_WidthFixed, 72.f);
-        ImGui::TableSetupColumn("内存", ImGuiTableColumnFlags_WidthFixed, 72.f);
-        ImGui::TableSetupColumn("识别", ImGuiTableColumnFlags_WidthStretch, 1.6f);
-        ImGui::TableHeadersRow();
-        if (state.processes.empty()) {
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::TextColored(gTheme.muted, "未发现 Java 进程");
-            ImGui::TextColored(gTheme.muted, "启动 Minecraft 并停在主菜单，然后点击刷新");
-        } else {
-            for (int i = 0; i < static_cast<int>(state.processes.size()); ++i) {
-                const auto& proc = state.processes[i];
-                ImGui::PushID(i);
-                ImGui::TableNextRow();
-                const bool selected = i == state.selectedIndex;
-                if (selected) {
-                    ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0,
-                                           ImGui::ColorConvertFloat4ToU32(gTheme.accentSoft));
-                }
-                ImGui::TableSetColumnIndex(0);
-                if (ImGui::Selectable(WideToUtf8(proc.exeName).c_str(), selected,
-                                      ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
-                    state.selectedIndex = i;
-                    UpdateSelectionUi(state);
-                    AppendLog(state, L"[MyiUI] 已选中 PID " + std::to_wstring(proc.pid), LogLevel::Info);
-                }
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%lu", proc.pid);
-                ImGui::TableSetColumnIndex(2);
-                ImGui::Text("%s", WideToUtf8(myiui::FormatMemory(proc.workingSetBytes)).c_str());
-                ImGui::TableSetColumnIndex(3);
-                const bool mc = IsMcProcess(proc);
-                ImGui::TextColored(mc ? gTheme.fg : gTheme.muted, "%s", WideToUtf8(BuildTag(proc)).c_str());
-                ImGui::PopID();
-            }
-        }
-        ImGui::EndTable();
-    }
-    ImGui::EndChild();
+    // Top bar
+    DrawTopBar(state, dl, ImVec2(x0, y0), ImVec2(x1, y0 + kTopBarH));
 
-    std::wstring hint = L"请先选择目标进程（推荐带 MC 标记的进程）";
-    bool hintError = false;
-    if (state.injecting) {
-        hint = L"正在注入，按 Esc 可取消…";
-    } else if (state.selectedIndex >= 0) {
-        const auto& proc = state.processes[state.selectedIndex];
-        if (state.injectedPid == proc.pid) {
-            hint = L"当前进程已注入，可重新注入或切换进程";
-        } else {
-            hint = L"已选中 PID " + std::to_wstring(proc.pid) + L"，点击注入";
-        }
-    }
+    // Log console + footer at the bottom
+    const float footerY = y1 - kFooterH;
+    const float logBottom = footerY - 6.f;
+    const float logTop = logBottom - kLogConsoleH;
 
-    dl->AddLine(ImVec2(procMin.x, procMax.y - 88.f), ImVec2(procMax.x, procMax.y - 88.f),
-                ImGui::ColorConvertFloat4ToU32(gTheme.border));
-    const ImVec2 hintSize = ImGui::CalcTextSize(WideToUtf8(hint).c_str());
-    dl->AddText(ImVec2(procMin.x + (procW - hintSize.x) * 0.5f, procMax.y - 78.f),
-                ImGui::ColorConvertFloat4ToU32(hintError ? gTheme.danger : gTheme.muted), WideToUtf8(hint).c_str());
+    // Main content row
+    const float mainTop = y0 + kTopBarH + kGap;
+    const float mainBottom = logTop - kGap;
+    const float leftRight = x1 - kRightColW - kGap;
 
-    ImGui::SetCursorScreenPos(ImVec2(procMin.x + 14.f, procMax.y - 52.f));
-    ImGui::BeginDisabled(state.selectedIndex < 0 || state.injecting);
-    const char* injectLabel = state.injecting
-                                  ? "注入中…"
-                                  : (state.injectedPid > 0 && state.selectedIndex >= 0 &&
-                                             state.processes[state.selectedIndex].pid == state.injectedPid
-                                         ? "重新注入"
-                                         : "注入 MyiUI");
-    const float injectGlow = 0.22f + 0.12f * std::sin(static_cast<float>(ImGui::GetTime()) * 3.5f);
-    ImGui::PushStyleColor(ImGuiCol_Button, gTheme.accent);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(gTheme.accent.x, gTheme.accent.y, gTheme.accent.z, 0.9f));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.12f, 0.13f, 0.16f, 1.f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(gTheme.accent.x, gTheme.accent.y, gTheme.accent.z, injectGlow));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 14.f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.f);
-    if (ImGui::Button("##inject_myui", ImVec2(procW - 28.f, 40.f))) {
-        StartInjection(state);
-    }
-    {
-        const ImVec2 btnMin = ImGui::GetItemRectMin();
-        const ImVec2 btnMax = ImGui::GetItemRectMax();
-        const ImVec2 ts = ImGui::CalcTextSize(injectLabel);
-        dl->AddText(ImVec2((btnMin.x + btnMax.x - ts.x) * 0.5f, (btnMin.y + btnMax.y - ts.y) * 0.5f),
-                    IM_COL32(31, 33, 41, 255), injectLabel);
-    }
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(4);
-    ImGui::EndDisabled();
+    DrawProcessPanel(state, dl, ImVec2(x0, mainTop), ImVec2(leftRight, mainBottom));
+    DrawSidePanel(state, dl, ImVec2(leftRight + kGap, mainTop), ImVec2(x1, mainBottom));
+    DrawLogConsole(state, dl, ImVec2(x0, logTop), ImVec2(x1, logBottom));
 
-    const ImVec2 sideMin(procMax.x + 14.f, gridTop);
-    const ImVec2 sideMax(wp.x + ws.x - pad, gridTop + gridH);
-    DrawGlassPanel(dl, sideMin, sideMax);
+    // Footer
+    const char* footer = "需要权限时请以管理员身份运行 · MyiUI Injector";
+    DrawTextCentered(dl, ImVec2((x0 + x1) * 0.5f, footerY + kFooterH * 0.5f), P.faint, footer, 13.f);
 
-    const float cardInsetX = 12.f;
-    const float cardGap = 10.f;
-    float cardY = sideMin.y + 12.f;
-
-    auto drawStatusCard = [&](float y, float height, const char* label, const std::wstring& value,
-                              const std::wstring& meta = L"") {
-        const ImVec2 cmin(sideMin.x + cardInsetX, y);
-        const ImVec2 cmax(sideMax.x - cardInsetX, y + height);
-        dl->AddRectFilled(cmin, cmax, ImGui::ColorConvertFloat4ToU32(gTheme.fgSoft), 10.f);
-        dl->AddRect(cmin, cmax, ImGui::ColorConvertFloat4ToU32(gTheme.border), 10.f);
-        dl->AddText(ImVec2(cmin.x + 10.f, cmin.y + 8.f), ImGui::ColorConvertFloat4ToU32(gTheme.muted), label);
-        dl->AddText(ImVec2(cmin.x + 10.f, cmin.y + 28.f), ImGui::ColorConvertFloat4ToU32(gTheme.fg),
-                    WideToUtf8(value).c_str());
-        if (!meta.empty()) {
-            dl->AddText(ImVec2(cmin.x + 10.f, cmin.y + 50.f), ImGui::ColorConvertFloat4ToU32(gTheme.muted),
-                        WideToUtf8(meta).c_str());
-        }
-        return height;
-    };
-
-    std::wstring selectedName = L"—";
-    if (state.selectedIndex >= 0 && state.selectedIndex < static_cast<int>(state.processes.size())) {
-        const auto& p = state.processes[state.selectedIndex];
-        selectedName = p.exeName + L" · " + std::to_wstring(p.pid);
-    }
-
-    constexpr float kSelectedCardH = 98.f;
-    drawStatusCard(cardY, kSelectedCardH, "选中进程", selectedName);
-    DrawPill(dl, ImVec2(sideMin.x + cardInsetX + 10.f, cardY + 58.f), state.pillState, state.pillText);
-    cardY += kSelectedCardH + cardGap;
-
-    constexpr float kInjectorCardH = 88.f;
-    drawStatusCard(cardY, kInjectorCardH, "注入器状态", state.injectorState, state.injectorMeta);
-    cardY += kInjectorCardH + cardGap;
-
-    drawStatusCard(cardY, 58.f, "上次注入", state.lastInjectTime);
-
-    const ImVec2 logMin(wp.x + pad, mainBottom + 10.f);
-    const ImVec2 logMax(wp.x + ws.x - pad, mainBottom + 10.f + kLogH);
-    DrawGlassPanel(dl, logMin, logMax);
-    dl->AddText(ImVec2(logMin.x + 14.f, logMin.y + 8.f), ImGui::ColorConvertFloat4ToU32(gTheme.fg), "运行日志");
-    if (DrawSmallButton("##clearlog", "清空", ImVec2(logMax.x - 62.f, logMin.y + 6.f), ImVec2(48.f, 26.f))) {
-        state.logs.clear();
-    }
-    ImGui::SetCursorScreenPos(ImVec2(logMin.x + 10.f, logMin.y + 36.f));
-    ImGui::BeginChild("##logs", ImVec2(logMax.x - logMin.x - 20.f, kLogH - 46.f), false);
-    {
-        std::lock_guard<std::mutex> lock(state.logMutex);
-        if (state.logs.empty()) {
-        ImGui::TextColored(gTheme.muted, "暂无日志输出");
-    } else {
-        for (const auto& line : state.logs) {
-            wchar_t ts[16]{};
-            SYSTEMTIME st{};
-            GetLocalTime(&st);
-            swprintf(ts, 16, L"%02u:%02u:%02u", st.wHour, st.wMinute, st.wSecond);
-            ImGui::TextColored(gTheme.muted, "[%s]", WideToUtf8(ts).c_str());
-            ImGui::SameLine();
-            ImGui::TextColored(LogColor(line.level), "%s", WideToUtf8(line.text).c_str());
-        }
-        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.f) {
-            ImGui::SetScrollHereY(1.f);
-        }
-    }
-    }
-    ImGui::EndChild();
-
-    const char* footer = "需管理员权限时请以管理员运行 · 每次重启 MC 需重新注入";
-    const ImVec2 fts = ImGui::CalcTextSize(footer);
-    dl->AddText(ImVec2(wp.x + (ws.x - fts.x) * 0.5f, logMax.y + 8.f), ImGui::ColorConvertFloat4ToU32(gTheme.muted),
-                footer);
-
-    if (state.toastTimer > 0.f && !state.toastMessage.empty()) {
-        const std::string toast = WideToUtf8(state.toastMessage);
-        const ImVec2 ts = ImGui::CalcTextSize(toast.c_str());
-        constexpr float kPadX = 18.f;
-        constexpr float kPadY = 10.f;
-        const float boxW = ts.x + kPadX * 2.f;
-        const float boxH = ts.y + kPadY * 2.f;
-        const ImVec2 tmin(wp.x + (ws.x - boxW) * 0.5f, wp.y + ws.y - 56.f - boxH);
-        const ImVec2 tmax(tmin.x + boxW, tmin.y + boxH);
-        const ImVec4 borderCol = state.toastError ? gTheme.danger : gTheme.success;
-        const ImVec4 textCol = state.toastError ? gTheme.danger : gTheme.success;
-        dl->AddRectFilled(tmin, tmax, ImGui::ColorConvertFloat4ToU32(gTheme.surface), 10.f);
-        dl->AddRect(tmin, tmax, ImGui::ColorConvertFloat4ToU32(borderCol), 10.f);
-        dl->AddText(ImVec2((tmin.x + tmax.x - ts.x) * 0.5f, (tmin.y + tmax.y - ts.y) * 0.5f),
-                    ImGui::ColorConvertFloat4ToU32(textCol), toast.c_str());
-    }
-
-    // Inject overlay removed — v2 injection is instant, just show toast.
-
-    if (state.injectDismissPending &&
-        (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::IsMouseClicked(0))) {
-        FinishInjectionUi(state, state.injectDismissOk);
-    }
+    // Toast
+    DrawToast(state, dl, wp, ws);
 
     ImGui::End();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(2);
 
     if (uiFont) ImGui::PopFont();

@@ -7,6 +7,12 @@ public final class Main {
 
     public static void main(String[] args) {
         AgentLog.init();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                com.myiui.agent.netease.NetEaseBridge.shutdown();
+            } catch (Throwable ignored) {
+            }
+        }, "MyiUI-Shutdown"));
         if (!STARTED.compareAndSet(false, true)) {
             AgentLog.info("Agent already started — refreshing transformers");
             try {

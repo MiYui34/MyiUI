@@ -152,6 +152,38 @@ jclass DefineClassFromArray(JNIEnv* env, jbyteArray classBytes, jobject classLoa
     return clazz;
 }
 
+jclass LoadClassViaLoader(JNIEnv* env, jobject loader, const char* binaryName) {
+    if (!loader || !binaryName) {
+        return nullptr;
+    }
+    jclass clClass = env->FindClass("java/lang/ClassLoader");
+    if (!clClass || env->ExceptionCheck()) {
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        return nullptr;
+    }
+    jmethodID loadClass = env->GetMethodID(clClass, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+    if (!loadClass || env->ExceptionCheck()) {
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
+        return nullptr;
+    }
+    jstring jname = env->NewStringUTF(binaryName);
+    jobject cls = env->CallObjectMethod(loader, loadClass, jname);
+    env->DeleteLocalRef(jname);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return nullptr;
+    }
+    return static_cast<jclass>(cls);
+}
+
+jclass LoadClassViaGameLoader(JNIEnv* env, const char* binaryName) {
+    return LoadClassViaLoader(env, GetClassLoader(), binaryName);
+}
+
 jclass FindClassGlobal(const char* signature) {
     jvmtiEnv* jvmti = GetJvmti();
     if (jvmti == nullptr) {

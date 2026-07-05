@@ -43,6 +43,8 @@ void DrawMenuBackground(MenuRenderContext& ctx) {
 
     bg->AddRectFilled(ImVec2(0, 0), display,
                       IM_COL32(8, 12, 20, static_cast<int>(140 * ctx.cfg.background.vignette_strength / 0.55f)));
+    // Uniform scrim so glass panels stay readable on bright vanilla backgrounds.
+    bg->AddRectFilled(ImVec2(0, 0), display, IM_COL32(10, 14, 22, 72));
     const float vignette = ctx.cfg.background.vignette_strength;
     bg->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2(display.x, display.y * 0.25f),
                                 IM_COL32(0, 0, 0, static_cast<int>(120 * vignette)),
@@ -52,6 +54,13 @@ void DrawMenuBackground(MenuRenderContext& ctx) {
                                 IM_COL32(0, 0, 0, static_cast<int>(160 * vignette)),
                                 IM_COL32(0, 0, 0, static_cast<int>(160 * vignette)));
 }
+
+namespace {
+
+constexpr int kHoverManager = 0;
+constexpr int kHoverProfile = 8;
+
+}  // namespace
 
 void DrawMenuTopBar(MenuRenderContext& ctx, bool inputsEnabled) {
     const ImVec2 display = ImGui::GetIO().DisplaySize;
@@ -84,7 +93,7 @@ void DrawMenuTopBar(MenuRenderContext& ctx, bool inputsEnabled) {
         const ImVec2 mgrSize(Px(168.f, scale), Px(44.f, scale));
         ImVec2 mgrPos(display.x - sideMargin - mgrSize.x, topMargin);
         mgrPos = ClampPos(mgrPos, mgrSize, display);
-        float& mgrHover = ctx.state.hover_anim[0];
+        float& mgrHover = ctx.state.hover_anim[kHoverManager];
         ImGui::SetCursorScreenPos(mgrPos);
         ImGui::InvisibleButton("##mgr", mgrSize);
         const bool mgrHovered = ImGui::IsItemHovered();
@@ -133,5 +142,5 @@ void DrawMenuProfile(MenuRenderContext& ctx, float clusterTop, float clusterH) {
     const float profileH = Px(168.f, scale);
     const ImVec2 profilePos(sideMargin, clusterTop + (clusterH - profileH) * 0.5f);
     DrawProfileCard(ImGui::GetWindowDrawList(), profilePos, ImVec2(profileW, profileH), ctx.cfg, GetUiFonts(), scale,
-                    ctx.state.hover_anim[0], ctx.state.data.profile);
+                    ctx.state.hover_anim[kHoverProfile], ctx.state.data.profile);
 }

@@ -8,6 +8,52 @@
 
 namespace myiui::overlay {
 
+namespace {
+
+bool IsValidProjectRoot(const std::wstring& root) {
+    if (root.empty()) {
+        return false;
+    }
+    const wchar_t* agentJars[] = {
+        L"\\agent\\build\\libs\\myiui-agent-1.0.0.jar",
+        L"\\agent\\build\\libs\\myiui-agent-1.0.jar",
+        L"\\agent\\build\\libs\\myiui-agent.jar",
+    };
+    for (const wchar_t* rel : agentJars) {
+        if (GetFileAttributesW((root + rel).c_str()) != INVALID_FILE_ATTRIBUTES) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::wstring RootFromDllPath() {
+    wchar_t dllPath[MAX_PATH]{};
+    HMODULE self = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCWSTR>(&RootFromDllPath), &self);
+    if (!self || GetModuleFileNameW(self, dllPath, MAX_PATH) == 0) {
+        return {};
+    }
+    std::wstring path(dllPath);
+    const auto pos = path.find_last_of(L"\\/");
+    if (pos != std::wstring::npos) {
+        path.resize(pos);
+    }
+    if (path.ends_with(L"Release") || path.ends_with(L"Debug")) {
+        path = path.substr(0, path.find_last_of(L"\\/"));
+    }
+    if (path.ends_with(L"overlay")) {
+        path = path.substr(0, path.find_last_of(L"\\/"));
+    }
+    if (path.ends_with(L"build")) {
+        path = path.substr(0, path.find_last_of(L"\\/"));
+    }
+    return path;
+}
+
+}  // namespace
+
 void OverlayLog(const wchar_t* message) {
     wchar_t localAppData[MAX_PATH * 2]{};
     if (GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH * 2) == 0) {
@@ -25,7 +71,10 @@ void OverlayLog(const wchar_t* message) {
 std::wstring ResolveProjectRoot() {
     wchar_t env[1024]{};
     if (GetEnvironmentVariableW(L"MYIUI_ROOT", env, 1024) > 0) {
-        return env;
+        const std::wstring fromEnv(env);
+        if (IsValidProjectRoot(fromEnv)) {
+            return fromEnv;
+        }
     }
 
     wchar_t localAppData[MAX_PATH * 2]{};
@@ -35,38 +84,20 @@ std::wstring ResolveProjectRoot() {
         if (in) {
             std::wstring root;
             std::getline(in, root);
-            if (!root.empty()) {
+            if (IsValidProjectRoot(root)) {
                 return root;
             }
         }
 
         const std::wstring runtimeRoot = std::wstring(localAppData) + L"\\MyiUI\\runtime";
-        const std::wstring theme = runtimeRoot + L"\\config\\menu\\theme.json";
-        if (GetFileAttributesW(theme.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        if (IsValidProjectRoot(runtimeRoot)) {
             return runtimeRoot;
         }
     }
 
-    wchar_t dllPath[MAX_PATH]{};
-    HMODULE self = nullptr;
-    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                       reinterpret_cast<LPCWSTR>(&ResolveProjectRoot), &self);
-    if (self && GetModuleFileNameW(self, dllPath, MAX_PATH) > 0) {
-        std::wstring path(dllPath);
-        const auto pos = path.find_last_of(L"\\/");
-        if (pos != std::wstring::npos) path.resize(pos);
-        if (path.ends_with(L"Release") || path.ends_with(L"Debug")) {
-            path = path.substr(0, path.find_last_of(L"\\/"));
-        }
-        if (path.ends_with(L"overlay")) {
-            path = path.substr(0, path.find_last_of(L"\\/"));
-        }
-        if (path.ends_with(L"build")) {
-            path = path.substr(0, path.find_last_of(L"\\/"));
-        }
-        if (GetFileAttributesW((path + L"\\assets\\logos\\png").c_str()) != INVALID_FILE_ATTRIBUTES) {
-            return path;
-        }
+    const std::wstring fromDll = RootFromDllPath();
+    if (IsValidProjectRoot(fromDll)) {
+        return fromDll;
     }
 
     return L"";
@@ -76,14 +107,18 @@ static void ApplyDefaultConfig(AppConfig& cfg) {
     cfg.root_path.clear();
     cfg.theme.blur_radius = 18.f;
     cfg.theme.corner_radius = 14.f;
-    cfg.theme.glass_tint[0] = 12;
-    cfg.theme.glass_tint[1] = 14;
-    cfg.theme.glass_tint[2] = 22;
-    cfg.theme.glass_tint[3] = 140;
+    cfg.theme.glass_tint[0] = 18;
+    cfg.theme.glass_tint[1] = 22;
+    cfg.theme.glass_tint[2] = 32;
+    cfg.theme.glass_tint[3] = 165;
+    cfg.theme.glass_tint_strong[0] = 14;
+    cfg.theme.glass_tint_strong[1] = 18;
+    cfg.theme.glass_tint_strong[2] = 28;
+    cfg.theme.glass_tint_strong[3] = 210;
     cfg.theme.border_color[0] = 255;
     cfg.theme.border_color[1] = 255;
     cfg.theme.border_color[2] = 255;
-    cfg.theme.border_color[3] = 38;
+    cfg.theme.border_color[3] = 110;
     cfg.theme.text_primary[0] = 255;
     cfg.theme.text_primary[1] = 255;
     cfg.theme.text_primary[2] = 255;
