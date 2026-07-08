@@ -127,6 +127,12 @@ Agent 会自动在后台 `node app.js` 启动服务。
 - `quality`：`standard` / `exhigh` / `lossless`（lossless 需 api-enhanced 启用 `ENABLE_FLAC`）
 - 登录态 cookie 明文保存在 `%LOCALAPPDATA%\MyiUI\netease\cookie.txt`，请勿在公共设备使用
 
+## License
+
+MyiUI 采用 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）授权。
+
+仓库内第三方组件保留各自原有许可证，例如 `overlay/third_party/imgui`（MIT）、`overlay/third_party/minhook`（BSD）。
+
 ## Credits
 
 - [SoarClient-fork](https://github.com/Eatgrapes/SoarClient-fork) (MIT) — ModernHotBar 居中布局、信息 HUD 与音乐波形交互思路参考

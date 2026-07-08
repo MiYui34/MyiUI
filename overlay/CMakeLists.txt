@@ -34,6 +34,7 @@ add_library(myiui-overlay SHARED
     src/bridge/native_state.cpp
     src/bridge/native_bridge.cpp
     src/bridge/native_query.cpp
+    src/bridge/overlay_command_queue.cpp
     src/config/config_loader.cpp
     src/config/user_settings.cpp
     src/ipc/pipe_client.cpp
@@ -78,6 +79,8 @@ add_library(myiui-overlay SHARED
     src/ui/music/music_panel.cpp
     src/ui/theme/material_you.cpp
     src/ui/theme/theme_runtime.cpp
+    src/render/frame_runtime.cpp
+    src/render/gl_state_guard.cpp
     src/render/gl_loader.cpp
     ../shared/logo_wic.cpp
     ${IMGUI_SOURCES}

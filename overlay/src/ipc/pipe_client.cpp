@@ -1,8 +1,7 @@
 #include "ipc/pipe_client.h"
 
 #include "bridge/native_query.h"
-
-#include <thread>
+#include "bridge/overlay_command_queue.h"
 
 bool PipeSendCommand(const std::string& command) {
     return myiui::bridge::ActionJava(command);
@@ -17,7 +16,7 @@ bool PipeSendCommandWaitMs(const std::string& command, int /*timeoutMs*/) {
 }
 
 void PipeSendCommandAsync(const std::string& command) {
-    std::thread([command]() { myiui::bridge::ActionJavaAsync(command); }).detach();
+    myiui::bridge::EnqueueOverlayCommand(command);
 }
 
 PipeQueryResult PipeQueryJson(const std::string& command, int timeoutMs) {

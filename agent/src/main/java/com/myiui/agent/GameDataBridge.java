@@ -134,6 +134,15 @@ public final class GameDataBridge {
             VideoBackground.reload(null);
             return "OK";
         }
+        if (cmd.startsWith("OVERLAY_READY:")) {
+            try {
+                int seq = Integer.parseInt(cmd.substring("OVERLAY_READY:".length()).trim());
+                SharedState.setOverlayAckForSeq(seq);
+            } catch (NumberFormatException e) {
+                return "ERR overlay_ack";
+            }
+            return "OK";
+        }
         if (cmd.equals("OVERLAY_READY")) {
             SharedState.setOverlayAck(true);
             return "OK";

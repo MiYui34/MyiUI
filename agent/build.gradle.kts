@@ -39,7 +39,8 @@ tasks.jar {
         attributes(
             "Main-Class" to "com.myiui.agent.Main",
             "Implementation-Title" to "MyiUI Agent",
-            "Implementation-Version" to project.version
+            "Implementation-Version" to project.version,
+            "Implementation-License" to "AGPL-3.0"
         )
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE

@@ -1,7 +1,9 @@
 #include "inject_core.h"
 
 #include <windows.h>
+#include <tlhelp32.h>
 
+#include <cwchar>
 #include <cstdio>
 #include <fstream>
 #include <vector>
@@ -62,6 +64,56 @@ bool EnableDebugPrivilege() {
     const bool ok = GetLastError() == ERROR_SUCCESS;
     CloseHandle(token);
     return ok;
+}
+
+std::wstring BaseName(const std::wstring& path) {
+    const auto pos = path.find_last_of(L"\\/");
+    return pos == std::wstring::npos ? path : path.substr(pos + 1);
+}
+
+bool ProcessHasModule(DWORD pid, const std::wstring& moduleName) {
+    const std::wstring wanted = BaseName(moduleName);
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, pid);
+    if (snap == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    MODULEENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    bool found = false;
+    if (Module32FirstW(snap, &entry)) {
+        do {
+            if (_wcsicmp(entry.szModule, wanted.c_str()) == 0 ||
+                _wcsicmp(BaseName(entry.szExePath).c_str(), wanted.c_str()) == 0) {
+                found = true;
+                break;
+            }
+        } while (Module32NextW(snap, &entry));
+    }
+    CloseHandle(snap);
+    return found;
+}
+
+HANDLE OpenTargetProcess(DWORD pid, const LogFn& log) {
+    HANDLE process = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION |
+                                     PROCESS_VM_WRITE | PROCESS_VM_READ,
+                                 FALSE, pid);
+    if (!process) {
+        DefaultLog(log, L"[MyiUI] OpenProcess failed: " + std::to_wstring(GetLastError()) +
+                               L" — 请尝试以管理员身份运行注入器。",
+                   true);
+        return nullptr;
+    }
+
+    BOOL isWow64 = FALSE;
+    if (IsWow64Process(process, &isWow64) && isWow64) {
+        DefaultLog(log, L"[MyiUI] 目标进程是 32 位，但 MyiUI 仅支持 64 位 Java。", true);
+        CloseHandle(process);
+        return nullptr;
+    }
+
+    DefaultLog(log, L"[MyiUI] Target validated: 64-bit process, pid=" + std::to_wstring(pid), false);
+    return process;
 }
 
 bool GetFileWriteTime(const std::wstring& path, FILETIME* out) {
@@ -290,6 +342,12 @@ std::wstring GetProjectRoot() {
         return env;
     }
     std::wstring exe = GetExeDirectory();
+    
+    // 如果是从 dist/MyiUI-1.21.x-win64 运行，当前目录就是 project root
+    if (FileExists(exe + L"\\myiui-overlay.dll") && FileExists(exe + L"\\design")) {
+        return exe;
+    }
+    
     if (exe.ends_with(L"Release") || exe.ends_with(L"Debug")) {
         exe = exe.substr(0, exe.find_last_of(L"\\/"));
     }
@@ -317,6 +375,10 @@ std::wstring FindAgentJar(const std::wstring& root) {
 }
 
 std::wstring FindOverlayDll(const std::wstring& root) {
+    // 优先查找发布包结构
+    const std::wstring distDll = root + L"\\myiui-overlay.dll";
+    if (FileExists(distDll)) return distDll;
+    
     return root + L"\\build\\overlay\\Release\\myiui-overlay.dll";
 }
 
@@ -333,15 +395,14 @@ bool InjectDll(DWORD pid, const std::wstring& dllPath, const LogFn& log) {
 
     EnableDebugPrivilege();
 
-    HANDLE process = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION |
-                                     PROCESS_VM_WRITE | PROCESS_VM_READ,
-                                 FALSE, pid);
-    if (!process) {
-        DefaultLog(log, L"[MyiUI] OpenProcess failed: " + std::to_wstring(GetLastError()) +
-                               L" — 请尝试以管理员身份运行注入器。",
-                   true);
-        return false;
+    const std::wstring moduleName = BaseName(dllPath);
+    if (ProcessHasModule(pid, moduleName)) {
+        DefaultLog(log, L"[MyiUI] Overlay already loaded in target process: " + moduleName, false);
+        return true;
     }
+
+    HANDLE process = OpenTargetProcess(pid, log);
+    if (!process) return false;
 
     const size_t size = (dllPath.size() + 1) * sizeof(wchar_t);
     LPVOID remote = VirtualAllocEx(process, nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -360,16 +421,45 @@ bool InjectDll(DWORD pid, const std::wstring& dllPath, const LogFn& log) {
 
     HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
     FARPROC loadLibrary = GetProcAddress(kernel32, "LoadLibraryW");
+    DefaultLog(log, L"[MyiUI] Remote LoadLibraryW path: " + dllPath, false);
+    
     HANDLE thread = CreateRemoteThread(process, nullptr, 0,
                                        reinterpret_cast<LPTHREAD_START_ROUTINE>(loadLibrary), remote, 0, nullptr);
+                                       
     if (!thread) {
-        DefaultLog(log, L"[MyiUI] CreateRemoteThread failed: " + std::to_wstring(GetLastError()), true);
+        DefaultLog(log, L"[MyiUI] CreateRemoteThread failed (" + std::to_wstring(GetLastError()) + L"), 尝试 NtCreateThreadEx...", false);
+        
+        // Fallback to NtCreateThreadEx
+        HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (ntdll) {
+            using NtCreateThreadExFn = LONG(WINAPI*)(PHANDLE, ACCESS_MASK, PVOID, HANDLE, LPTHREAD_START_ROUTINE, PVOID, ULONG, ULONG_PTR, SIZE_T, SIZE_T, PVOID);
+            auto NtCreateThreadEx = reinterpret_cast<NtCreateThreadExFn>(GetProcAddress(ntdll, "NtCreateThreadEx"));
+            if (NtCreateThreadEx) {
+                LONG status = NtCreateThreadEx(&thread, THREAD_ALL_ACCESS, nullptr, process, reinterpret_cast<LPTHREAD_START_ROUTINE>(loadLibrary), remote, 0, 0, 0, 0, nullptr);
+                if (status < 0 || !thread) {
+                    DefaultLog(log, L"[MyiUI] NtCreateThreadEx failed: " + std::to_wstring(status), true);
+                }
+            }
+        }
+    }
+
+    if (!thread) {
+        DefaultLog(log, L"[MyiUI] 无法在目标进程中创建远程线程。", true);
         VirtualFreeEx(process, remote, 0, MEM_RELEASE);
         CloseHandle(process);
         return false;
     }
 
-    WaitForSingleObject(thread, INFINITE);
+    // 增加超时机制，防止目标进程死锁导致注入器卡死
+    DWORD waitResult = WaitForSingleObject(thread, 10000);
+    if (waitResult == WAIT_TIMEOUT) {
+        DefaultLog(log, L"[MyiUI] 远程线程执行超时 (10s)。目标进程可能已死锁或被挂起。", true);
+        // 不释放内存，因为线程可能还在运行
+        CloseHandle(thread);
+        CloseHandle(process);
+        return false;
+    }
+
     DWORD exitCode = 0;
     GetExitCodeThread(thread, &exitCode);
     CloseHandle(thread);
@@ -377,9 +467,15 @@ bool InjectDll(DWORD pid, const std::wstring& dllPath, const LogFn& log) {
     CloseHandle(process);
 
     if (exitCode == 0) {
-        DefaultLog(log, L"[MyiUI] LoadLibrary returned NULL — DLL may have failed to initialize.", true);
+        DefaultLog(log, L"[MyiUI] LoadLibrary 返回 NULL — DLL 加载失败。可能是缺少依赖 (如 VC++ 运行库) 或路径无效。", true);
         return false;
     }
+    DefaultLog(log, L"[MyiUI] LoadLibraryW returned module=0x" + std::to_wstring(exitCode), false);
+    if (!ProcessHasModule(pid, moduleName)) {
+        DefaultLog(log, L"[MyiUI] LoadLibrary returned success but module scan did not find " + moduleName, true);
+        return false;
+    }
+    DefaultLog(log, L"[MyiUI] Verified overlay module loaded: " + moduleName, false);
     return true;
 }
 

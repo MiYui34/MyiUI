@@ -10,6 +10,7 @@
 namespace {
 
 InjectorLogoTexture g_mark{};
+InjectorLogoTexture g_background{};
 
 bool FileExists(const std::wstring& path) {
     return GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES;
@@ -30,10 +31,10 @@ std::wstring GetExeDirectory() {
     return path;
 }
 
-std::wstring ResolveLogoFile(const std::wstring& projectRoot) {
-    static const wchar_t* kCandidates[] = {L"logo-glass-m-64.png", L"logo-glass-m-128.png", L"logo-glass-m-256.png"};
+std::wstring ResolveFile(const std::wstring& projectRoot, const wchar_t** candidates, size_t numCandidates) {
     const std::wstring exeDir = GetExeDirectory();
     const std::wstring dirs[] = {
+        exeDir,
         JoinPath(exeDir, L"assets\\logos\\png"),
         JoinPath(projectRoot, L"assets\\logos\\png"),
         JoinPath(projectRoot, L"..\\MyUI\\logos\\png"),
@@ -49,12 +50,22 @@ std::wstring ResolveLogoFile(const std::wstring& projectRoot) {
     }
 
     for (const auto& dir : searchDirs) {
-        for (const wchar_t* name : kCandidates) {
-            const std::wstring path = JoinPath(dir, name);
+        for (size_t i = 0; i < numCandidates; ++i) {
+            const std::wstring path = JoinPath(dir, candidates[i]);
             if (FileExists(path)) return path;
         }
     }
     return {};
+}
+
+std::wstring ResolveLogoFile(const std::wstring& projectRoot) {
+    static const wchar_t* kCandidates[] = {L"logo-glass-m-64.png", L"logo-glass-m-128.png", L"logo-glass-m-256.png"};
+    return ResolveFile(projectRoot, kCandidates, 3);
+}
+
+std::wstring ResolveBackgroundFile(const std::wstring& projectRoot) {
+    static const wchar_t* kCandidates[] = {L"background.png", L"background.jpg", L"bg.png", L"bg.jpg"};
+    return ResolveFile(projectRoot, kCandidates, 4);
 }
 
 bool UploadLogoTexture(ID3D11Device* device, const std::wstring& path, InjectorLogoTexture& out) {
@@ -99,9 +110,13 @@ bool UploadLogoTexture(ID3D11Device* device, const std::wstring& path, InjectorL
 
 void InitInjectorLogos(ID3D11Device* device, const std::wstring& projectRoot) {
     if (!device) return;
-    const std::wstring path = ResolveLogoFile(projectRoot);
-    if (!path.empty()) {
-        UploadLogoTexture(device, path, g_mark);
+    const std::wstring logoPath = ResolveLogoFile(projectRoot);
+    if (!logoPath.empty()) {
+        UploadLogoTexture(device, logoPath, g_mark);
+    }
+    const std::wstring bgPath = ResolveBackgroundFile(projectRoot);
+    if (!bgPath.empty()) {
+        UploadLogoTexture(device, bgPath, g_background);
     }
 }
 
@@ -110,10 +125,18 @@ void ShutdownInjectorLogos() {
         g_mark.srv->Release();
         g_mark = {};
     }
+    if (g_background.srv) {
+        g_background.srv->Release();
+        g_background = {};
+    }
 }
 
 const InjectorLogoTexture& GetInjectorMarkLogo() {
     return g_mark;
+}
+
+const InjectorLogoTexture& GetInjectorBackground() {
+    return g_background;
 }
 
 void DrawInjectorLogoFit(ImDrawList* dl, const InjectorLogoTexture& logo, const ImVec2& min, const ImVec2& max,
@@ -131,4 +154,26 @@ void DrawInjectorLogoFit(ImDrawList* dl, const InjectorLogoTexture& logo, const 
     const ImVec2 p1(p0.x + drawW, p0.y + drawH);
     const ImU32 tint = IM_COL32(255, 255, 255, static_cast<int>((std::min)(1.f, (std::max)(0.f, alpha)) * 255.f));
     dl->AddImage((ImTextureID)logo.srv, p0, p1, ImVec2(0, 0), ImVec2(1, 1), tint);
+}
+
+void DrawInjectorBackground(ImDrawList* dl, const InjectorLogoTexture& bg, const ImVec2& min, const ImVec2& max,
+                            float alpha) {
+    if (!dl || !bg.valid()) return;
+
+    const float boxW = max.x - min.x;
+    const float boxH = max.y - min.y;
+    if (boxW <= 0.f || boxH <= 0.f) return;
+
+    // Fill cover
+    const float scaleX = boxW / static_cast<float>(bg.w);
+    const float scaleY = boxH / static_cast<float>(bg.h);
+    const float scale = (std::max)(scaleX, scaleY);
+    
+    const float drawW = static_cast<float>(bg.w) * scale;
+    const float drawH = static_cast<float>(bg.h) * scale;
+    const ImVec2 p0(min.x + (boxW - drawW) * 0.5f, min.y + (boxH - drawH) * 0.5f);
+    const ImVec2 p1(p0.x + drawW, p0.y + drawH);
+    
+    const ImU32 tint = IM_COL32(255, 255, 255, static_cast<int>((std::min)(1.f, (std::max)(0.f, alpha)) * 255.f));
+    dl->AddImage((ImTextureID)bg.srv, p0, p1, ImVec2(0, 0), ImVec2(1, 1), tint);
 }

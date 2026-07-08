@@ -6,9 +6,10 @@ public final class SharedState {
 
     private static volatile boolean menuActive;
     private static volatile boolean overlayAck;
+    private static volatile int overlayAckSeq = -1;
     private static volatile boolean vanillaConnectInProgress;
     private static volatile byte currentScreenKind = ScreenKind.NONE;
-    private static int screenSeq = 0;
+    private static volatile int screenSeq = 0;
     private static int hudSeq = 0;
     private static int islandSeq = 0;
     private static int tabSeq = 0;
@@ -44,6 +45,8 @@ public final class SharedState {
             byte kind = ScreenKind.SUB_MENU;
             if (kind != currentScreenKind || menuActive) {
                 menuActive = false;
+                overlayAck = false;
+                overlayAckSeq = -1;
                 currentScreenKind = kind;
                 screenSeq++;
                 writeUiState(kind, false, screenSeq);
@@ -60,6 +63,10 @@ public final class SharedState {
         menuActive = active;
         if (active) {
             overlayAck = false;
+            overlayAckSeq = -1;
+        } else {
+            overlayAck = false;
+            overlayAckSeq = -1;
         }
         currentScreenKind = kind;
         screenSeq++;
@@ -76,6 +83,8 @@ public final class SharedState {
     public static synchronized void beginVanillaConnect() {
         vanillaConnectInProgress = true;
         menuActive = false;
+        overlayAck = false;
+        overlayAckSeq = -1;
         VideoBackground.suspendForGameScreen();
     }
 
@@ -93,6 +102,8 @@ public final class SharedState {
             return;
         }
         menuActive = false;
+        overlayAck = false;
+        overlayAckSeq = -1;
         currentScreenKind = ScreenKind.IN_GAME;
         screenSeq++;
         writeUiState(ScreenKind.IN_GAME, false, screenSeq);
@@ -186,6 +197,8 @@ public final class SharedState {
 
     public static synchronized void setMenuActive(boolean active) {
         menuActive = active;
+        overlayAck = false;
+        overlayAckSeq = -1;
         byte kind = active ? ScreenKind.MAIN_MENU : currentScreenKind;
         if (active) {
             kind = ScreenKind.MAIN_MENU;
@@ -201,13 +214,28 @@ public final class SharedState {
 
     /** TitleScreen vanilla render is skipped only after overlay confirms it can draw. */
     public static boolean shouldSkipVanillaTitleRender() {
-        return menuActive && overlayAck;
+        return ScreenStateMachine.canSkipVanillaTitleRender(menuActive, screenSeq, overlayAckSeq);
     }
 
-    public static void setOverlayAck(boolean ack) {
-        overlayAck = ack;
-        if (ack) {
-            AgentLog.info("Overlay 已就绪 — 跳过原版主菜单绘制");
+    public static synchronized void setOverlayAck(boolean ack) {
+        if (!ack) {
+            overlayAck = false;
+            overlayAckSeq = -1;
+            writeUiState(currentScreenKind, menuActive, screenSeq);
+            return;
+        }
+        setOverlayAckForSeq(screenSeq);
+    }
+
+    public static synchronized void setOverlayAckForSeq(int ackSeq) {
+        if (ScreenStateMachine.isAckForCurrentScreen(menuActive, screenSeq, ackSeq)) {
+            overlayAck = true;
+            overlayAckSeq = ackSeq;
+            writeUiState(currentScreenKind, menuActive, screenSeq);
+            AgentLog.info("Overlay 已就绪 seq=" + ackSeq + " — 跳过原版主菜单绘制");
+        } else {
+            AgentLog.info("忽略过期 Overlay ack seq=" + ackSeq + " current=" + screenSeq
+                    + " active=" + menuActive);
         }
     }
 
@@ -562,6 +590,7 @@ public final class SharedState {
 
     private static void writeUiState(byte kind, boolean active, int seq) {
         boolean islandActive = kind == ScreenKind.IN_GAME;
-        NativeBridge.pushScreenState(kind, seq, active, islandActive, overlayAck);
+        boolean acked = ScreenStateMachine.canSkipVanillaTitleRender(active, seq, overlayAckSeq);
+        NativeBridge.pushScreenState(kind, seq, active, islandActive, acked);
     }
 }

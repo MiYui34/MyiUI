@@ -10,6 +10,8 @@
 #include "ipc/shm_reader.h"
 #include "jvm/jvm_spike.h"
 #include "overlay_runtime.h"
+#include "render/frame_runtime.h"
+#include "render/gl_state_guard.h"
 #include "ui/logo_assets.h"
 #include "ui/fonts.h"
 #include "ui/menu_app.h"
@@ -33,6 +35,7 @@
 #include <chrono>
 #include <cstdint>
 #include <mutex>
+#include <string>
 #include <vector>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -55,10 +58,21 @@ static HWND g_hwnd = nullptr;
 static WNDPROC g_originalWndProc = nullptr;
 static std::atomic<bool> g_menuActive{false};
 static bool g_wasMenuActive = false;
-static bool g_menuOverlayAcked = false;
+static uint32_t g_menuOverlayAckedSeq = 0;
 static uint32_t g_lastScreenSeq = 0;
 static myiui::shared::ScreenKind g_lastScreenKind = myiui::shared::ScreenKind::None;
 static thread_local bool g_insideGlfwSwap = false;
+
+enum class BootstrapState : int {
+    Uninitialized = 0,
+    Initializing,
+    HooksReady,
+    AgentReady,
+    Failed,
+};
+
+static std::atomic<bool> g_initStarted{false};
+static std::atomic<int> g_bootstrapState{static_cast<int>(BootstrapState::Uninitialized)};
 
 static GLuint g_bgTexture = 0;
 static int g_bgW = 0;
@@ -160,6 +174,22 @@ static void UploadBackgroundTexture(const std::vector<uint8_t>& rgba, uint32_t w
     if (rgba.empty() || w == 0 || h == 0) return;
     if (w > 8192 || h > 8192) return;
     if (rgba.size() < static_cast<size_t>(w) * static_cast<size_t>(h) * 4u) return;
+
+    // Save OpenGL state
+    GLint last_texture = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &last_texture);
+    GLint last_unpack_alignment = 0;
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &last_unpack_alignment);
+    GLint last_unpack_row_length = 0;
+    glGetIntegerv(GL_UNPACK_ROW_LENGTH, &last_unpack_row_length);
+    GLint last_unpack_skip_pixels = 0;
+    glGetIntegerv(GL_UNPACK_SKIP_PIXELS, &last_unpack_skip_pixels);
+    GLint last_unpack_skip_rows = 0;
+    glGetIntegerv(GL_UNPACK_SKIP_ROWS, &last_unpack_skip_rows);
+
+    // Clear error flag before our operations
+    myiui::render::ClearGlErrors();
+
     if (g_bgTexture == 0) glGenTextures(1, &g_bgTexture);
     glBindTexture(GL_TEXTURE_2D, g_bgTexture);
 
@@ -177,6 +207,16 @@ static void UploadBackgroundTexture(const std::vector<uint8_t>& rgba, uint32_t w
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Restore OpenGL state
+    glBindTexture(GL_TEXTURE_2D, last_texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, last_unpack_alignment);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, last_unpack_row_length);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, last_unpack_skip_pixels);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, last_unpack_skip_rows);
+    
+    // Clear any errors we might have caused so we don't pollute the game's GL state
+    myiui::render::ClearGlErrors();
 }
 
 static void PollSharedFrame() {
@@ -224,12 +264,6 @@ static void EnsureShmConnected() {
 static void RenderOverlayFrame(HWND hwnd) {
     if (g_overlayRendering) return;
     g_overlayRendering = true;
-
-    if (!myiui::inject::IsJvmEntryDone() && myiui::jvm::IsReady()) {
-        if (JNIEnv* env = myiui::jvm::AttachEnv()) {
-            myiui::inject::TryRunJvmEntry(env);
-        }
-    }
 
     EnsureShmConnected();
 
@@ -330,7 +364,7 @@ static void RenderOverlayFrame(HWND hwnd) {
         OverlayInvalidateBackgroundTexture();
         myiui::overlay::OverlayLog(L"Main menu resumed.");
     } else if (!overlayActive && g_wasMenuActive) {
-        g_menuOverlayAcked = false;
+        g_menuOverlayAckedSeq = 0;
         PipeSendCommandAsync("OVERLAY_SUSPEND");
         myiui::overlay::OverlayLog(L"Overlay suspended for game screen.");
     }
@@ -359,9 +393,9 @@ static void RenderOverlayFrame(HWND hwnd) {
         return;
     }
 
-    if (overlayActive && !g_menuOverlayAcked) {
-        PipeSendCommandAsync("OVERLAY_READY");
-        g_menuOverlayAcked = true;
+    if (overlayActive && screenSeq != 0 && g_menuOverlayAckedSeq != screenSeq) {
+        PipeSendCommandAsync("OVERLAY_READY:" + std::to_string(screenSeq));
+        g_menuOverlayAckedSeq = screenSeq;
     }
 
     if (overlayActive || clickguiOpen) {
@@ -370,21 +404,25 @@ static void RenderOverlayFrame(HWND hwnd) {
 
     TryInstallGlfwHook();
 
-    GLint viewport[4]{};
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    if (viewport[2] > 0 && viewport[3] > 0) {
-        const uint32_t vw = static_cast<uint32_t>(viewport[2]);
-        const uint32_t vh = static_cast<uint32_t>(viewport[3]);
-        if (g_lastViewportW > 0 && g_lastViewportH > 0 &&
-            (vw != g_lastViewportW || vh != g_lastViewportH)) {
-            g_viewportResizeCooldown = 12;
-            OverlayInvalidateBackgroundTexture();
-            myiui::overlay::OverlayLog(L"Viewport resize — GL cooldown.");
-        }
-        g_lastViewportW = vw;
-        g_lastViewportH = vh;
-        ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(viewport[2]), static_cast<float>(viewport[3]));
+    const myiui::render::FrameViewport viewport = myiui::render::ReadViewport();
+    
+    // 保护：如果 viewport 无效，则跳过渲染
+    if (!viewport.valid()) {
+        g_overlayRendering = false;
+        return;
     }
+
+    const uint32_t vw = static_cast<uint32_t>(viewport.width);
+    const uint32_t vh = static_cast<uint32_t>(viewport.height);
+    if (g_lastViewportW > 0 && g_lastViewportH > 0 &&
+        (vw != g_lastViewportW || vh != g_lastViewportH)) {
+        g_viewportResizeCooldown = 12;
+        OverlayInvalidateBackgroundTexture();
+        myiui::overlay::OverlayLog(L"Viewport resize — GL cooldown.");
+    }
+    g_lastViewportW = vw;
+    g_lastViewportH = vh;
+    ImGui::GetIO().DisplaySize = ImVec2(static_cast<float>(viewport.width), static_cast<float>(viewport.height));
 
     if (g_viewportResizeCooldown > 0) {
         g_viewportResizeCooldown--;
@@ -396,17 +434,18 @@ static void RenderOverlayFrame(HWND hwnd) {
         PollSharedFrame();
     }
 
-    if (g_configLoaded && viewport[2] > 0 && viewport[3] > 0) {
-        const float scale = (std::min)(static_cast<float>(viewport[2]) / 1920.f,
-                                       static_cast<float>(viewport[3]) / 1080.f);
+    if (g_configLoaded) {
+        const float scale = (std::min)(static_cast<float>(viewport.width) / 1920.f,
+                                       static_cast<float>(viewport.height) / 1080.f);
         InitUiFonts(g_config.theme, scale);
     }
 
+    myiui::render::GlStateGuard glGuard;
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    if (g_configLoaded && g_userSettingsLoaded && viewport[2] > 0 && viewport[3] > 0) {
+    if (g_configLoaded && g_userSettingsLoaded) {
         const float dt = ImGui::GetIO().DeltaTime;
         myiui::config::UserSettingsTick(dt);
         myiui::ui::theme::ThemeRuntimeTick(g_config, myiui::config::GetUserSettingsConst(), dt);
@@ -420,10 +459,10 @@ static void RenderOverlayFrame(HWND hwnd) {
         EnsureLogos(g_config.root_path);
     }
 
-    if (g_configLoaded && viewport[2] > 0 && viewport[3] > 0) {
+    if (g_configLoaded) {
         if (overlayActive) {
-            const float scale = (std::min)(static_cast<float>(viewport[2]) / 1920.f,
-                                           static_cast<float>(viewport[3]) / 1080.f);
+            const float scale = (std::min)(static_cast<float>(viewport.width) / 1920.f,
+                                           static_cast<float>(viewport.height) / 1080.f);
             MenuRenderContext ctx{g_config, g_menuState, (ImTextureID)(intptr_t)g_bgTexture, g_bgTexture != 0, g_bgW,
                                   g_bgH, scale};
             MenuAppRender(ctx);
@@ -432,23 +471,23 @@ static void RenderOverlayFrame(HWND hwnd) {
             const bool layoutEdit = clickguiOpen && myiui::config::GetUserSettingsConst().layout_editor_enabled;
             const bool inGame = g_shm.GetScreenKind() == myiui::shared::ScreenKind::InGame;
             if (myiui::ui::clickgui::HudVisible() && (!clickguiOpen || layoutEdit) && inGame) {
-                myiui::ui::hud::HudRender(g_config, g_shm, static_cast<float>(viewport[2]),
-                                          static_cast<float>(viewport[3]), dt, layoutEdit);
+                myiui::ui::hud::HudRender(g_config, g_shm, static_cast<float>(viewport.width),
+                                          static_cast<float>(viewport.height), dt, layoutEdit);
             }
             if ((!clickguiOpen || layoutEdit) && islandActive && myiui::ui::clickgui::IslandVisible()) {
-                myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport[2]),
-                                                static_cast<float>(viewport[3]), dt);
+                myiui::ui::island::IslandRender(g_config.theme, g_shm, static_cast<float>(viewport.width),
+                                                static_cast<float>(viewport.height), dt);
             }
             if (!clickguiOpen && inGame && myiui::ui::clickgui::HudVisible()) {
-                myiui::ui::hud::HudRenderImmersiveLyrics(g_config, g_shm, static_cast<float>(viewport[2]),
-                                                         static_cast<float>(viewport[3]));
+                myiui::ui::hud::HudRenderImmersiveLyrics(g_config, g_shm, static_cast<float>(viewport.width),
+                                                         static_cast<float>(viewport.height));
             }
             if (layoutEdit && inGame) {
-                myiui::ui::hud::LayoutEditorRender(g_config, g_shm, static_cast<float>(viewport[2]),
-                                                    static_cast<float>(viewport[3]));
+                myiui::ui::hud::LayoutEditorRender(g_config, g_shm, static_cast<float>(viewport.width),
+                                                    static_cast<float>(viewport.height));
             }
-            myiui::ui::clickgui::Render(static_cast<float>(viewport[2]),
-                                        static_cast<float>(viewport[3]), dt);
+            myiui::ui::clickgui::Render(static_cast<float>(viewport.width),
+                                        static_cast<float>(viewport.height), dt);
         }
     }
 
@@ -575,7 +614,14 @@ static BOOL WINAPI Hook_wglSwapBuffers(HDC hdc) {
         return g_originalWglSwap(hdc);
     }
     const HWND hwnd = WindowFromDC(hdc);
-    RenderOverlayFrame(hwnd);
+    
+    // Check if we have a valid OpenGL context before trying to render
+    if (myiui::render::HasCurrentGlContext()) {
+        // Clear any pre-existing errors before we start rendering
+        myiui::render::ClearGlErrors();
+        RenderOverlayFrame(hwnd);
+    }
+    
     return g_originalWglSwap(hdc);
 }
 
@@ -584,31 +630,45 @@ static void __stdcall Hook_glfwSwapBuffers(void* window) {
     HDC hdc = wglGetCurrentDC();
     if (hdc) hwnd = WindowFromDC(hdc);
     g_insideGlfwSwap = true;
-    RenderOverlayFrame(hwnd);
+    
+    // Check if we have a valid OpenGL context before trying to render
+    if (myiui::render::HasCurrentGlContext()) {
+        // Clear any pre-existing errors before we start rendering
+        myiui::render::ClearGlErrors();
+        RenderOverlayFrame(hwnd);
+    }
+    
     g_originalGlfwSwap(window);
     g_insideGlfwSwap = false;
 }
 
 static DWORD WINAPI InitThread(LPVOID) {
+    g_bootstrapState.store(static_cast<int>(BootstrapState::Initializing), std::memory_order_release);
     Sleep(1000);
     myiui::jvm::RunJvmSpike();
     myiui::jvm::SpikeLog(L"[build] myiui-overlay v2 multiver 2026-07-04");
-    myiui::inject::InstallGameHook();
+    const bool lwjglHookOk = myiui::inject::InstallGameHook();
 
     const MH_STATUS mhInit = MH_Initialize();
     if (mhInit != MH_OK && mhInit != MH_ERROR_ALREADY_INITIALIZED) {
         myiui::overlay::OverlayLog(L"MinHook init failed.");
+        g_bootstrapState.store(static_cast<int>(BootstrapState::Failed), std::memory_order_release);
         return 1;
     }
 
-    if (MH_CreateHookApi(L"opengl32.dll", "wglSwapBuffers", &Hook_wglSwapBuffers,
-                         reinterpret_cast<LPVOID*>(&g_originalWglSwap)) != MH_OK) {
+    const MH_STATUS createWgl =
+        MH_CreateHookApi(L"opengl32.dll", "wglSwapBuffers", &Hook_wglSwapBuffers,
+                         reinterpret_cast<LPVOID*>(&g_originalWglSwap));
+    if (createWgl != MH_OK && createWgl != MH_ERROR_ALREADY_CREATED) {
         myiui::overlay::OverlayLog(L"wglSwapBuffers hook failed.");
+        g_bootstrapState.store(static_cast<int>(BootstrapState::Failed), std::memory_order_release);
         return 2;
     }
-    if (MH_EnableHook(reinterpret_cast<LPVOID>(g_originalWglSwap)) != MH_OK &&
+    const MH_STATUS enableWgl = MH_EnableHook(reinterpret_cast<LPVOID>(g_originalWglSwap));
+    if (enableWgl != MH_OK && enableWgl != MH_ERROR_ENABLED &&
         MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {
         myiui::overlay::OverlayLog(L"Enable wgl hook failed.");
+        g_bootstrapState.store(static_cast<int>(BootstrapState::Failed), std::memory_order_release);
         return 3;
     }
 
@@ -620,12 +680,37 @@ static DWORD WINAPI InitThread(LPVOID) {
     }
 
     myiui::overlay::OverlayLog(L"Overlay hooks ready.");
+    g_bootstrapState.store(static_cast<int>(BootstrapState::HooksReady), std::memory_order_release);
+
+    // Agent bootstrap fallback runs on this initialization thread, never on the render/swap path.
+    if (!lwjglHookOk) {
+        myiui::jvm::SpikeLog(L"[hook] using bootstrap thread fallback for agent startup");
+    }
+    for (int i = 0; i < 60 && !myiui::inject::IsJvmEntryDone(); ++i) {
+        if (myiui::jvm::IsReady()) {
+            if (JNIEnv* env = myiui::jvm::AttachEnv()) {
+                myiui::inject::TryRunJvmEntry(env);
+            }
+        }
+        Sleep(500);
+    }
+    if (myiui::inject::IsJvmEntryDone()) {
+        g_bootstrapState.store(static_cast<int>(BootstrapState::AgentReady), std::memory_order_release);
+        myiui::overlay::OverlayLog(L"Agent bootstrap ready.");
+    } else {
+        myiui::overlay::OverlayLog(L"Agent bootstrap not ready yet; overlay will wait for Java state.");
+    }
     return 0;
 }
 
 void HooksInit(HMODULE) {
     myiui::overlay::OverlayLog(L"myiui-overlay.dll loaded (v2 JVMTI+JNI).");
-    CreateThread(nullptr, 0, InitThread, nullptr, 0, nullptr);
+    if (g_initStarted.exchange(true, std::memory_order_acq_rel)) {
+        myiui::overlay::OverlayLog(L"HooksInit ignored — overlay already initialized.");
+        return;
+    }
+    HANDLE thread = CreateThread(nullptr, 0, InitThread, nullptr, 0, nullptr);
+    if (thread) CloseHandle(thread);
 }
 
 void OverlayRequestConfigReload() {

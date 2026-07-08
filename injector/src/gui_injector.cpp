@@ -367,46 +367,6 @@ void PollScanResult(myiui::injector_ui::GuiState& state) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Sections
 // ─────────────────────────────────────────────────────────────────────────────
-void DrawTopBar(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
-    // Logo mark
-    const float logoSz = 40.f;
-    const ImVec2 logoMin(mn.x, mn.y + (mx.y - mn.y - logoSz) * 0.5f);
-    const ImVec2 logoMax(logoMin.x + logoSz, logoMin.y + logoSz);
-    const InjectorLogoTexture& logo = GetInjectorMarkLogo();
-    if (logo.valid()) {
-        DrawInjectorLogoFit(dl, logo, logoMin, logoMax, 1.f);
-    } else {
-        dl->AddRectFilled(logoMin, logoMax, P.accentSoft, 10.f);
-        dl->AddRect(logoMin, logoMax, P.accent, 10.f, 0, 1.f);
-        DrawTextCentered(dl, ImVec2((logoMin.x + logoMax.x) * 0.5f, (logoMin.y + logoMax.y) * 0.5f), P.text, "M", 22.f);
-    }
-
-    const float textX = logoMax.x + 14.f;
-    DrawText(dl, ImVec2(textX, mn.y + 8.f), P.text, "MyiUI Injector", 24.f);
-    DrawText(dl, ImVec2(textX, mn.y + 36.f), P.muted, "轻量级 Fabric 注入启动器", 15.f);
-
-    // Global status pill on the right
-    ImU32 dot = P.faint;
-    const char* label = "空闲";
-    if (state.injecting) {
-        dot = P.accent;
-        label = "注入中";
-    } else if (state.refreshing) {
-        dot = P.accent;
-        label = "扫描中";
-    } else if (state.injectedPid != 0) {
-        dot = P.ok;
-        label = "已注入";
-    } else if (!state.processes.empty()) {
-        dot = P.warn;
-        label = "待注入";
-    }
-    const ImVec2 pts = MeasureText(label, 0.f);
-    const float pillW = pts.x + 34.f;
-    DrawStatusPill(dl, ImVec2(mx.x - pillW, mn.y + (mx.y - mn.y - (pts.y + 10.f)) * 0.5f), dot, label,
-                   state.injecting || state.refreshing);
-}
-
 void DrawProcessPanel(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
     DrawCard(dl, mn, mx);
 
@@ -718,6 +678,101 @@ void RefreshProcesses(GuiState& state, bool manual) {
     }).detach();
 }
 
+void DrawSettingsPanel(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    DrawCard(dl, mn, mx);
+    DrawText(dl, ImVec2(mn.x + 24.f, mn.y + 24.f), P.text, "个性化与设置", 22.f);
+    
+    float y = mn.y + 70.f;
+    const float insetX = mn.x + 24.f;
+    
+    DrawText(dl, ImVec2(insetX, y), P.text, "自定义背景", 16.f);
+    DrawText(dl, ImVec2(insetX, y + 24.f), P.muted, "在注入器同目录下放置 background.png 或 background.jpg 即可自动加载。", 14.f);
+    y += 60.f;
+    
+    DrawText(dl, ImVec2(insetX, y), P.text, "自动刷新", 16.f);
+    DrawText(dl, ImVec2(insetX, y + 24.f), P.muted, "开启后，注入器将每隔 8 秒自动扫描新的 Java 进程。", 14.f);
+    if (GhostButton("##set_auto", state.autoRefresh ? "已开启" : "已关闭", ImVec2(mx.x - 120.f, y + 8.f), ImVec2(80.f, 30.f), state.autoRefresh)) {
+        state.autoRefresh = !state.autoRefresh;
+    }
+    y += 60.f;
+}
+
+void DrawAboutPanel(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    DrawCard(dl, mn, mx);
+    
+    const float cx = (mn.x + mx.x) * 0.5f;
+    float y = mn.y + 80.f;
+    
+    const InjectorLogoTexture& logo = GetInjectorMarkLogo();
+    if (logo.valid()) {
+        DrawInjectorLogoFit(dl, logo, ImVec2(cx - 40.f, y), ImVec2(cx + 40.f, y + 80.f), 1.f);
+    }
+    y += 100.f;
+    
+    DrawTextCentered(dl, ImVec2(cx, y), P.text, "MyiUI Injector", 28.f);
+    y += 36.f;
+    DrawTextCentered(dl, ImVec2(cx, y), P.accent, "v2.0.0 (Fabric 1.21.x)", 16.f);
+    y += 40.f;
+    DrawTextCentered(dl, ImVec2(cx, y), P.muted, "轻量级、高性能的 Minecraft 覆盖层注入工具", 15.f);
+    y += 24.f;
+    DrawTextCentered(dl, ImVec2(cx, y), P.faint, "Copyright © 2026 MyiUI Team", 13.f);
+    y += 20.f;
+    DrawTextCentered(dl, ImVec2(cx, y), P.faint, "Licensed under AGPL-3.0", 13.f);
+}
+
+void DrawSidebar(myiui::injector_ui::GuiState& state, ImDrawList* dl, ImVec2 mn, ImVec2 mx) {
+    // Logo mark
+    const float logoSz = 48.f;
+    const ImVec2 logoMin(mn.x + (mx.x - mn.x - logoSz) * 0.5f, mn.y + 24.f);
+    const ImVec2 logoMax(logoMin.x + logoSz, logoMin.y + logoSz);
+    const InjectorLogoTexture& logo = GetInjectorMarkLogo();
+    if (logo.valid()) {
+        DrawInjectorLogoFit(dl, logo, logoMin, logoMax, 1.f);
+    } else {
+        dl->AddRectFilled(logoMin, logoMax, P.accentSoft, 12.f);
+        dl->AddRect(logoMin, logoMax, P.accent, 12.f, 0, 1.f);
+        DrawTextCentered(dl, ImVec2((logoMin.x + logoMax.x) * 0.5f, (logoMin.y + logoMax.y) * 0.5f), P.text, "M", 26.f);
+    }
+
+    float y = mn.y + 100.f;
+    const float btnW = mx.x - mn.x - 24.f;
+    const float btnH = 40.f;
+    const float btnX = mn.x + 12.f;
+
+    auto NavButton = [&](myiui::injector_ui::Page page, const char* label) {
+        const bool active = (state.currentPage == page);
+        if (GhostButton(label, label, ImVec2(btnX, y), ImVec2(btnW, btnH), active)) {
+            if (state.currentPage != page) {
+                state.targetPage = page;
+            }
+        }
+        y += btnH + 8.f;
+    };
+
+    NavButton(myiui::injector_ui::Page::Home, "注入中心");
+    NavButton(myiui::injector_ui::Page::Settings, "个性化");
+    NavButton(myiui::injector_ui::Page::Logs, "运行日志");
+    NavButton(myiui::injector_ui::Page::About, "关于");
+
+    // Global status pill at the bottom of the sidebar
+    ImU32 dot = P.faint;
+    const char* statusLabel = "空闲";
+    if (state.injecting) {
+        dot = P.accent;
+        statusLabel = "注入中";
+    } else if (state.refreshing) {
+        dot = P.accent;
+        statusLabel = "扫描中";
+    } else if (state.injectedPid != 0) {
+        dot = P.ok;
+        statusLabel = "已注入";
+    } else if (!state.processes.empty()) {
+        dot = P.warn;
+        statusLabel = "待注入";
+    }
+    DrawStatusPill(dl, ImVec2(mn.x + 12.f, mx.y - 48.f), dot, statusLabel, state.injecting || state.refreshing);
+}
+
 void Render(GuiState& state) {
     PollScanResult(state);
 
@@ -749,6 +804,18 @@ void Render(GuiState& state) {
         CancelInjection(state);
     }
 
+    // Page Transition Logic
+    if (state.currentPage != state.targetPage) {
+        state.pageTransition -= dt * 6.0f; // Fade out
+        if (state.pageTransition <= 0.0f) {
+            state.pageTransition = 0.0f;
+            state.currentPage = state.targetPage;
+        }
+    } else if (state.pageTransition < 1.0f) {
+        state.pageTransition += dt * 6.0f; // Fade in
+        if (state.pageTransition > 1.0f) state.pageTransition = 1.0f;
+    }
+
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
     ImGuiWindowFlags rootFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -767,40 +834,55 @@ void Render(GuiState& state) {
     const ImVec2 wp = ImGui::GetWindowPos();
     const ImVec2 ws = ImGui::GetWindowSize();
 
-    // Background gradient + top-left accent glow
-    DrawVerticalGradient(dl, wp, ImVec2(wp.x + ws.x, wp.y + ws.y), P.bgTop, P.bgBottom);
-    for (int i = 0; i < 4; ++i) {
-        ImVec4 g = U32ToVec4(P.glow);
-        g.w *= (1.f - i * 0.22f);
-        dl->AddCircleFilled(ImVec2(wp.x + ws.x * 0.14f, wp.y - 40.f), 220.f + i * 60.f,
-                            ImGui::ColorConvertFloat4ToU32(g));
+    // Background rendering
+    const InjectorLogoTexture& bg = GetInjectorBackground();
+    if (bg.valid()) {
+        DrawInjectorBackground(dl, bg, wp, ImVec2(wp.x + ws.x, wp.y + ws.y), 1.0f);
+        // Add a frosted glass tint over the background image
+        dl->AddRectFilled(wp, ImVec2(wp.x + ws.x, wp.y + ws.y), IM_COL32(15, 18, 25, 210));
+    } else {
+        // Animated gradient fallback
+        const float t = static_cast<float>(ImGui::GetTime());
+        ImU32 topCol = IM_COL32(20 + static_cast<int>(sin(t * 0.5f) * 10), 24, 34 + static_cast<int>(cos(t * 0.3f) * 10), 255);
+        DrawVerticalGradient(dl, wp, ImVec2(wp.x + ws.x, wp.y + ws.y), topCol, P.bgBottom);
+        for (int i = 0; i < 4; ++i) {
+            ImVec4 g = U32ToVec4(P.glow);
+            g.w *= (1.f - i * 0.22f);
+            float pulse = sin(t * 1.5f + i) * 10.f;
+            dl->AddCircleFilled(ImVec2(wp.x + ws.x * 0.14f, wp.y - 40.f), 220.f + i * 60.f + pulse,
+                                ImGui::ColorConvertFloat4ToU32(g));
+        }
     }
 
+    const float sidebarW = 180.f;
     const float x0 = wp.x + kPad;
     const float x1 = wp.x + ws.x - kPad;
     const float y0 = wp.y + kPad;
     const float y1 = wp.y + ws.y - kPad;
 
-    // Top bar
-    DrawTopBar(state, dl, ImVec2(x0, y0), ImVec2(x1, y0 + kTopBarH));
+    // Sidebar
+    DrawSidebar(state, dl, ImVec2(wp.x, wp.y), ImVec2(wp.x + sidebarW, wp.y + ws.y));
 
-    // Log console + footer at the bottom
-    const float footerY = y1 - kFooterH;
-    const float logBottom = footerY - 6.f;
-    const float logTop = logBottom - kLogConsoleH;
+    // Main content area with transition alpha
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, state.pageTransition);
+    const float contentX = wp.x + sidebarW + kPad;
+    const float contentY = y0;
+    const float contentW = x1 - contentX;
+    const float contentH = y1 - contentY;
 
-    // Main content row
-    const float mainTop = y0 + kTopBarH + kGap;
-    const float mainBottom = logTop - kGap;
-    const float leftRight = x1 - kRightColW - kGap;
-
-    DrawProcessPanel(state, dl, ImVec2(x0, mainTop), ImVec2(leftRight, mainBottom));
-    DrawSidePanel(state, dl, ImVec2(leftRight + kGap, mainTop), ImVec2(x1, mainBottom));
-    DrawLogConsole(state, dl, ImVec2(x0, logTop), ImVec2(x1, logBottom));
-
-    // Footer
-    const char* footer = "需要权限时请以管理员身份运行 · MyiUI Injector";
-    DrawTextCentered(dl, ImVec2((x0 + x1) * 0.5f, footerY + kFooterH * 0.5f), P.faint, footer, 13.f);
+    if (state.currentPage == Page::Home) {
+        const float rightColW = 320.f;
+        const float leftColW = contentW - rightColW - kGap;
+        DrawProcessPanel(state, dl, ImVec2(contentX, contentY), ImVec2(contentX + leftColW, contentY + contentH));
+        DrawSidePanel(state, dl, ImVec2(contentX + leftColW + kGap, contentY), ImVec2(contentX + contentW, contentY + contentH));
+    } else if (state.currentPage == Page::Settings) {
+        DrawSettingsPanel(state, dl, ImVec2(contentX, contentY), ImVec2(contentX + contentW, contentY + contentH));
+    } else if (state.currentPage == Page::Logs) {
+        DrawLogConsole(state, dl, ImVec2(contentX, contentY), ImVec2(contentX + contentW, contentY + contentH));
+    } else if (state.currentPage == Page::About) {
+        DrawAboutPanel(state, dl, ImVec2(contentX, contentY), ImVec2(contentX + contentW, contentY + contentH));
+    }
+    ImGui::PopStyleVar(); // Alpha
 
     // Toast
     DrawToast(state, dl, wp, ws);

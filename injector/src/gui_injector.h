@@ -23,8 +23,16 @@ struct LogLine {
 
 enum class PillState { Idle, Ready, Loading, Success, Error };
 
+enum class Page { Home, Settings, Logs, About };
+
 struct GuiState {
     HWND hwnd = nullptr;
+    
+    // Navigation
+    Page currentPage = Page::Home;
+    Page targetPage = Page::Home;
+    float pageTransition = 1.0f; // 0.0 to 1.0
+    
     std::vector<myiui::JavaProcessInfo> processes;
     int selectedIndex = -1;
     bool autoRefresh = false;

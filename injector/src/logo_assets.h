@@ -16,6 +16,9 @@ struct InjectorLogoTexture {
 void InitInjectorLogos(ID3D11Device* device, const std::wstring& projectRoot);
 void ShutdownInjectorLogos();
 const InjectorLogoTexture& GetInjectorMarkLogo();
+const InjectorLogoTexture& GetInjectorBackground();
 
 void DrawInjectorLogoFit(ImDrawList* dl, const InjectorLogoTexture& logo, const ImVec2& min, const ImVec2& max,
                          float alpha = 1.f);
+void DrawInjectorBackground(ImDrawList* dl, const InjectorLogoTexture& bg, const ImVec2& min, const ImVec2& max,
+                            float alpha = 1.f);

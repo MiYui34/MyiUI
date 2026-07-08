@@ -19,6 +19,7 @@ using LwjglCallP = void(JNICALL*)(JNIEnv*, jclass, jlong);
 
 LwjglCallP g_originalCallP = nullptr;
 LPVOID g_hookTarget = nullptr;
+std::atomic<bool> g_callPHookInstalled{false};
 std::atomic<bool> g_entryStarted{false};
 std::atomic<bool> g_entryDone{false};
 
@@ -132,23 +133,32 @@ bool TryRunJvmEntry(JNIEnv* env) {
 }
 
 bool InstallGameHook() {
+    if (g_callPHookInstalled.load(std::memory_order_acquire)) {
+        jvm::SpikeLog(L"[hook] lwjgl callP hook already installed");
+        return true;
+    }
+
     const MH_STATUS mhInit = MH_Initialize();
     if (mhInit != MH_OK && mhInit != MH_ERROR_ALREADY_INITIALIZED) {
         jvm::SpikeLog(L"[hook] MinHook init failed");
         return false;
     }
 
-    if (MH_CreateHookApiEx(L"lwjgl.dll", "Java_org_lwjgl_system_JNI_callP__J", &Hook_LwjglCallP,
-                           reinterpret_cast<LPVOID*>(&g_originalCallP), &g_hookTarget) != MH_OK) {
+    const MH_STATUS createStatus =
+        MH_CreateHookApiEx(L"lwjgl.dll", "Java_org_lwjgl_system_JNI_callP__J", &Hook_LwjglCallP,
+                           reinterpret_cast<LPVOID*>(&g_originalCallP), &g_hookTarget);
+    if (createStatus != MH_OK && createStatus != MH_ERROR_ALREADY_CREATED) {
         jvm::SpikeLog(L"[hook] lwjgl callP hook failed, wgl fallback will retry");
         return false;
     }
 
-    if (MH_EnableHook(g_hookTarget) != MH_OK) {
+    const MH_STATUS enableStatus = MH_EnableHook(g_hookTarget);
+    if (enableStatus != MH_OK && enableStatus != MH_ERROR_ENABLED) {
         jvm::SpikeLog(L"[hook] enable lwjgl hook failed");
         return false;
     }
 
+    g_callPHookInstalled.store(true, std::memory_order_release);
     jvm::SpikeLog(L"[hook] lwjgl callP hook installed");
     return true;
 }
