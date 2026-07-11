@@ -53,6 +53,7 @@ struct UserSettings {
     bool hud_visible = true;
     bool chat_visible = true;
     bool layout_editor_enabled = false;
+    bool web_panel_enabled = false;
 };
 
 UserSettings& GetUserSettings();

@@ -21,6 +21,8 @@
 #include "ui/island/island_renderer.h"
 #include "ui/music/music_panel.h"
 #include "ui/theme/theme_runtime.h"
+#include "web/web_panel.h"
+#include "web/web_engine.h"
 
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -325,11 +327,12 @@ static void RenderOverlayFrame(HWND hwnd) {
     }
 
     const bool clickguiOpen = myiui::ui::clickgui::IsOpen();
-    const bool shouldRender = overlayActive || islandActive || clickguiOpen;
+    const bool webPanelActive = myiui::web::WebPanelActive();
+    const bool shouldRender = overlayActive || islandActive || clickguiOpen || webPanelActive;
 
-    // 主菜单 overlay 或 ClickGui 需要 UI 鼠标：解除 GLFW 光标捕获并显示系统光标
+    // 主菜单 overlay、ClickGui 或 Web 面板需要 UI 鼠标：解除 GLFW 光标捕获并显示系统光标
     {
-        const bool needsUiMouse = overlayActive || clickguiOpen;
+        const bool needsUiMouse = overlayActive || clickguiOpen || webPanelActive;
         static bool s_uiMouseActive = false;
         if (needsUiMouse && !s_uiMouseActive) {
             ReleaseGameMouseCapture();
@@ -398,7 +401,7 @@ static void RenderOverlayFrame(HWND hwnd) {
         g_menuOverlayAckedSeq = screenSeq;
     }
 
-    if (overlayActive || clickguiOpen) {
+    if (overlayActive || clickguiOpen || webPanelActive) {
         ResumeOverlayInput();
     }
 
@@ -491,6 +494,9 @@ static void RenderOverlayFrame(HWND hwnd) {
         }
     }
 
+    // WebView2 browser (in-game only; gated inside WebPanelWanted).
+    myiui::web::WebPanelTickAndRender();
+
     ImGui::Render();
     if (ImGui::GetDrawData() != nullptr) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -499,7 +505,7 @@ static void RenderOverlayFrame(HWND hwnd) {
 }
 
 static LRESULT CALLBACK WndProcHook(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (msg == WM_SIZE || msg == WM_DISPLAYCHANGE) {
+    if (msg == WM_SIZE || msg == WM_MOVE || msg == WM_DISPLAYCHANGE) {
         g_viewportResizeCooldown = 12;
         OverlayInvalidateBackgroundTexture();
     }
@@ -538,6 +544,21 @@ static LRESULT CALLBACK WndProcHook(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
             return true;
         }
     }
+    // Web 面板：把输入交给 ImGui，但仅在 ImGui 需要时吞掉，避免挡住游戏点击
+    if (myiui::web::WebPanelActive() && g_imguiReady && !myiui::ui::clickgui::IsOpen()) {
+        if (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) {
+            ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
+            if (ImGui::GetIO().WantCaptureMouse) {
+                return true;
+            }
+        } else if (msg == WM_KEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP ||
+                   msg == WM_CHAR) {
+            ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
+            if (ImGui::GetIO().WantCaptureKeyboard) {
+                return true;
+            }
+        }
+    }
     if ((g_menuActive.load() || myiui::ui::clickgui::IsOpen()) && g_imguiReady) {
         if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam)) return true;
     }
@@ -549,10 +570,12 @@ static void EnsureImGuiForHwnd(HWND hwnd) {
         if (hwnd && hwnd != g_hwnd) {
             g_hwnd = hwnd;
             MenuAppSetWindowHandle(g_hwnd);
+            myiui::web::WebEngineSetParentHwnd(g_hwnd);
         }
         return;
     }
     g_hwnd = hwnd;
+    myiui::web::WebEngineSetParentHwnd(g_hwnd);
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -718,4 +741,8 @@ void OverlayRequestConfigReload() {
     g_lastFrameIndex = UINT32_MAX;
     InvalidateUiFonts();
     myiui::overlay::OverlayLog(L"Overlay config reload requested.");
+}
+
+void OverlayWebShutdown() {
+    myiui::web::WebPanelShutdown();
 }

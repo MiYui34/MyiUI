@@ -94,6 +94,7 @@ ModuleItem g_infoItems[] = {
 ModuleItem g_visualItems[] = {
     {"亮度", "游戏画面亮度", ItemType::Slider, nullptr, nullptr, 0.3f, 1.5f, "x", false, -1, 0.f, 0.f},
     {"Material You", "封面取色主题", ItemType::Toggle, nullptr, nullptr, 0, 0, nullptr, false, -1, 0.f, 0.f},
+    {"Web面板", "Ultralight HTML 悬浮窗", ItemType::Toggle, nullptr, nullptr, 0, 0, nullptr, false, -1, 0.f, 0.f},
 };
 
 struct Category {
@@ -107,7 +108,7 @@ struct Category {
 Category g_categories[] = {
     {"HUD", "H", g_hudItems, 8, false},
     {"信息", "I", g_infoItems, 3, false},
-    {"视觉", "V", g_visualItems, 2, false},
+    {"视觉", "V", g_visualItems, 3, false},
     {"音乐", "M", nullptr, 0, true},
 };
 constexpr int kCategoryCount = 4;
@@ -127,6 +128,7 @@ void BindSettingsPointers() {
     g_infoItems[2].boolValue = &s.now_playing.immersive_lyrics;
     g_visualItems[0].floatValue = &s.theme.ui_brightness;
     g_visualItems[1].boolValue = &s.theme.material_you;
+    g_visualItems[2].boolValue = &s.web_panel_enabled;
 }
 
 // ── 核心毛玻璃渲染 ──
@@ -442,6 +444,7 @@ float IslandOpacity() { return myiui::config::GetUserSettingsConst().island.opac
 bool ShowFps() { return myiui::config::GetUserSettingsConst().island.show_fps; }
 bool HudVisible() { return myiui::config::GetUserSettingsConst().hud_visible; }
 bool ChatVisible() { return myiui::config::GetUserSettingsConst().chat_visible; }
+bool WebPanelVisible() { return myiui::config::GetUserSettingsConst().web_panel_enabled; }
 
 bool g_suppressEscUp = false;
 void RequestSuppressEscUp() { g_suppressEscUp = true; }

@@ -171,6 +171,7 @@ void UserSettingsLoad() {
         g_settings.chat_visible = ParseBool(json.substr(cPos, 64), "visible", g_settings.chat_visible);
     }
     g_settings.layout_editor_enabled = ParseBool(json, "layout_editor", false);
+    g_settings.web_panel_enabled = ParseBool(json, "web_panel", false);
 
     MigrateLegacyUiSettings();
     SyncAgentUiFlags();
@@ -206,6 +207,7 @@ void UserSettingsSave() {
         << ", \"show_fps\": " << (g_settings.island.show_fps ? "true" : "false") << ", \"offset_x\": "
         << g_settings.island.offset_x << ", \"offset_y\": " << g_settings.island.offset_y << " },\n";
     out << "  \"layout_editor\": " << (g_settings.layout_editor_enabled ? "true" : "false") << ",\n";
+    out << "  \"web_panel\": " << (g_settings.web_panel_enabled ? "true" : "false") << ",\n";
     out << "  \"hud\": { \"visible\": " << (g_settings.hud_visible ? "true" : "false") << " },\n";
     out << "  \"chat\": { \"visible\": " << (g_settings.chat_visible ? "true" : "false") << " }\n";
     out << "}\n";

@@ -15,6 +15,7 @@ float IslandOpacity();
 bool ShowFps();
 bool HudVisible();
 bool ChatVisible();
+bool WebPanelVisible();
 
 void SyncTheme(const int accent[4]);
 

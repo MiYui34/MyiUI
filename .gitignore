@@ -3,6 +3,8 @@
 /agent/.gradle/
 /dist/
 /overlay/third_party/*.zip
+/overlay/third_party/*.7z
+/overlay/third_party/7zr.exe
 *.user
 *.suo
 .vs/

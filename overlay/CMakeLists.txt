@@ -3,6 +3,7 @@ project(myiui-overlay LANGUAGES CXX C)
 
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui-1.91.6)
 set(MINHOOK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/minhook-1.3.3)
+set(WEBVIEW2_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview2")
 
 set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui.cpp
@@ -79,6 +80,9 @@ add_library(myiui-overlay SHARED
     src/ui/music/music_panel.cpp
     src/ui/theme/material_you.cpp
     src/ui/theme/theme_runtime.cpp
+    src/web/web_engine.cpp
+    src/web/web_view.cpp
+    src/web/web_panel.cpp
     src/render/frame_runtime.cpp
     src/render/gl_state_guard.cpp
     src/render/gl_loader.cpp
@@ -86,6 +90,10 @@ add_library(myiui-overlay SHARED
     ${IMGUI_SOURCES}
     ${MINHOOK_SOURCES}
 )
+
+if(NOT EXISTS "${WEBVIEW2_ROOT}/include/WebView2.h")
+    message(FATAL_ERROR "WebView2 SDK not found at ${WEBVIEW2_ROOT}. Place headers/libs under overlay/third_party/webview2.")
+endif()
 
 target_include_directories(myiui-overlay PRIVATE
     ${IMGUI_DIR}
@@ -96,6 +104,7 @@ target_include_directories(myiui-overlay PRIVATE
     ${CMAKE_SOURCE_DIR}/shared
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/jni/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/jni/include/win32
+    ${WEBVIEW2_ROOT}/include
     src
 )
 
@@ -107,7 +116,11 @@ if(MSVC)
     target_compile_options(myiui-overlay PRIVATE /utf-8)
 endif()
 
-target_link_libraries(myiui-overlay PRIVATE opengl32 gdi32 user32 ws2_32 shell32 comdlg32 ole32 shlwapi windowscodecs winhttp)
+target_link_directories(myiui-overlay PRIVATE "${WEBVIEW2_ROOT}/lib/x64")
+target_link_libraries(myiui-overlay PRIVATE
+    opengl32 gdi32 user32 ws2_32 shell32 comdlg32 ole32 oleaut32 uuid shlwapi windowscodecs winhttp version
+    WebView2LoaderStatic
+)
 
 set_target_properties(myiui-overlay PROPERTIES OUTPUT_NAME "myiui-overlay")
 
@@ -116,4 +129,8 @@ add_custom_command(TARGET myiui-overlay POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/assets/logos/png"
         "$<TARGET_FILE_DIR:myiui-overlay>/assets/logos/png"
-    COMMENT "Copying logo assets next to overlay DLL")
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:myiui-overlay>/assets/web"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/web"
+        "$<TARGET_FILE_DIR:myiui-overlay>/assets/web"
+    COMMENT "Copying logo/web assets next to overlay DLL")

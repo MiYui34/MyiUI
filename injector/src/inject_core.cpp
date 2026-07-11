@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <tlhelp32.h>
 
+#include <cstring>
 #include <cwchar>
 #include <cstdio>
 #include <fstream>
@@ -133,9 +134,93 @@ std::wstring MakeVersionedCacheName(const std::wstring& stableName, const FILETI
     return buf;
 }
 
+std::wstring ParentDirectory(const std::wstring& path) {
+    const auto pos = path.find_last_of(L"\\/");
+    return pos == std::wstring::npos ? std::wstring{} : path.substr(0, pos);
+}
+
+bool RemoteCallKernel32W(HANDLE process, const char* procName, const wchar_t* argOrNull, const LogFn& log,
+                         DWORD* outExitCode = nullptr) {
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    FARPROC fn = kernel32 ? GetProcAddress(kernel32, procName) : nullptr;
+    if (!fn) {
+        DefaultLog(log, L"[MyiUI] GetProcAddress failed for " + std::wstring(procName, procName + strlen(procName)),
+                   true);
+        return false;
+    }
+
+    LPVOID remote = nullptr;
+    if (argOrNull) {
+        const size_t size = (wcslen(argOrNull) + 1) * sizeof(wchar_t);
+        remote = VirtualAllocEx(process, nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!remote) {
+            DefaultLog(log, L"[MyiUI] VirtualAllocEx failed: " + std::to_wstring(GetLastError()), true);
+            return false;
+        }
+        if (!WriteProcessMemory(process, remote, argOrNull, size, nullptr)) {
+            DefaultLog(log, L"[MyiUI] WriteProcessMemory failed: " + std::to_wstring(GetLastError()), true);
+            VirtualFreeEx(process, remote, 0, MEM_RELEASE);
+            return false;
+        }
+    }
+
+    HANDLE thread = CreateRemoteThread(process, nullptr, 0, reinterpret_cast<LPTHREAD_START_ROUTINE>(fn), remote, 0,
+                                       nullptr);
+    if (!thread) {
+        HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (ntdll) {
+            using NtCreateThreadExFn = LONG(WINAPI*)(PHANDLE, ACCESS_MASK, PVOID, HANDLE, LPTHREAD_START_ROUTINE, PVOID,
+                                                     ULONG, ULONG_PTR, SIZE_T, SIZE_T, PVOID);
+            auto NtCreateThreadEx =
+                reinterpret_cast<NtCreateThreadExFn>(GetProcAddress(ntdll, "NtCreateThreadEx"));
+            if (NtCreateThreadEx) {
+                LONG status = NtCreateThreadEx(&thread, THREAD_ALL_ACCESS, nullptr, process,
+                                               reinterpret_cast<LPTHREAD_START_ROUTINE>(fn), remote, 0, 0, 0, 0,
+                                               nullptr);
+                if (status < 0 || !thread) {
+                    DefaultLog(log, L"[MyiUI] NtCreateThreadEx failed: " + std::to_wstring(status), true);
+                }
+            }
+        }
+    }
+
+    if (!thread) {
+        DefaultLog(log, L"[MyiUI] 无法创建远程线程调用 " + std::wstring(procName, procName + strlen(procName)), true);
+        if (remote) VirtualFreeEx(process, remote, 0, MEM_RELEASE);
+        return false;
+    }
+
+    const DWORD waitResult = WaitForSingleObject(thread, 10000);
+    if (waitResult == WAIT_TIMEOUT) {
+        DefaultLog(log, L"[MyiUI] 远程调用超时: " + std::wstring(procName, procName + strlen(procName)), true);
+        CloseHandle(thread);
+        // Leave remote memory if still in use.
+        return false;
+    }
+
+    DWORD exitCode = 0;
+    GetExitCodeThread(thread, &exitCode);
+    CloseHandle(thread);
+    if (remote) VirtualFreeEx(process, remote, 0, MEM_RELEASE);
+    if (outExitCode) *outExitCode = exitCode;
+    return true;
+}
+
+void StageWebView2Dependencies(const std::wstring& overlayDllPath, const std::wstring& stageDir, const LogFn& log) {
+    const std::wstring srcDir = ParentDirectory(overlayDllPath);
+    if (srcDir.empty() || stageDir.empty()) return;
+
+    // Static WebView2Loader is linked into overlay; Evergreen runtime is system-installed.
+    // Keep this hook for future Fixed-Version bundles if needed.
+    (void)srcDir;
+    (void)stageDir;
+    (void)log;
+}
+
 std::wstring StageToAsciiCache(const std::wstring& srcPath, const std::wstring& cacheFileName,
                                const wchar_t* label, const LogFn& log) {
     if (!HasNonAsciiPath(srcPath)) {
+        StageWebView2Dependencies(srcPath, ParentDirectory(srcPath), log);
         return srcPath;
     }
 
@@ -158,18 +243,21 @@ std::wstring StageToAsciiCache(const std::wstring& srcPath, const std::wstring& 
     FILETIME dstTime{};
     const bool hasStable = GetFileWriteTime(stableDst, &dstTime);
     if (hasStable && CompareFileTime(&srcTime, &dstTime) == 0) {
+        StageWebView2Dependencies(srcPath, cacheDir, log);
         DefaultLog(log, std::wstring(L"[MyiUI] 使用缓存 ") + label + L": " + stableDst, false);
         return stableDst;
     }
 
     const std::wstring versionedDst = cacheDir + L"\\" + MakeVersionedCacheName(cacheFileName, srcTime);
     if (FileExists(versionedDst)) {
+        StageWebView2Dependencies(srcPath, cacheDir, log);
         DefaultLog(log, std::wstring(L"[MyiUI] 使用版本缓存 ") + label + L": " + versionedDst, false);
         return versionedDst;
     }
 
     DefaultLog(log, std::wstring(L"[MyiUI] 复制 ") + label + L" 到 ASCII 缓存路径…", false);
     if (CopyFileW(srcPath.c_str(), stableDst.c_str(), FALSE)) {
+        StageWebView2Dependencies(srcPath, cacheDir, log);
         DefaultLog(log, std::wstring(L"[MyiUI] 使用缓存 ") + label + L": " + stableDst, false);
         return stableDst;
     }
@@ -180,6 +268,7 @@ std::wstring StageToAsciiCache(const std::wstring& srcPath, const std::wstring& 
                                L" 被游戏占用，写入新版本文件…",
                    false);
         if (CopyFileW(srcPath.c_str(), versionedDst.c_str(), FALSE)) {
+            StageWebView2Dependencies(srcPath, cacheDir, log);
             DefaultLog(log, std::wstring(L"[MyiUI] 使用版本缓存 ") + label + L": " + versionedDst, false);
             return versionedDst;
         }
@@ -404,70 +493,37 @@ bool InjectDll(DWORD pid, const std::wstring& dllPath, const LogFn& log) {
     HANDLE process = OpenTargetProcess(pid, log);
     if (!process) return false;
 
-    const size_t size = (dllPath.size() + 1) * sizeof(wchar_t);
-    LPVOID remote = VirtualAllocEx(process, nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!remote) {
-        DefaultLog(log, L"[MyiUI] VirtualAllocEx failed: " + std::to_wstring(GetLastError()), true);
-        CloseHandle(process);
-        return false;
-    }
-
-    if (!WriteProcessMemory(process, remote, dllPath.c_str(), size, nullptr)) {
-        DefaultLog(log, L"[MyiUI] WriteProcessMemory failed: " + std::to_wstring(GetLastError()), true);
-        VirtualFreeEx(process, remote, 0, MEM_RELEASE);
-        CloseHandle(process);
-        return false;
-    }
-
-    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-    FARPROC loadLibrary = GetProcAddress(kernel32, "LoadLibraryW");
-    DefaultLog(log, L"[MyiUI] Remote LoadLibraryW path: " + dllPath, false);
-    
-    HANDLE thread = CreateRemoteThread(process, nullptr, 0,
-                                       reinterpret_cast<LPTHREAD_START_ROUTINE>(loadLibrary), remote, 0, nullptr);
-                                       
-    if (!thread) {
-        DefaultLog(log, L"[MyiUI] CreateRemoteThread failed (" + std::to_wstring(GetLastError()) + L"), 尝试 NtCreateThreadEx...", false);
-        
-        // Fallback to NtCreateThreadEx
-        HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
-        if (ntdll) {
-            using NtCreateThreadExFn = LONG(WINAPI*)(PHANDLE, ACCESS_MASK, PVOID, HANDLE, LPTHREAD_START_ROUTINE, PVOID, ULONG, ULONG_PTR, SIZE_T, SIZE_T, PVOID);
-            auto NtCreateThreadEx = reinterpret_cast<NtCreateThreadExFn>(GetProcAddress(ntdll, "NtCreateThreadEx"));
-            if (NtCreateThreadEx) {
-                LONG status = NtCreateThreadEx(&thread, THREAD_ALL_ACCESS, nullptr, process, reinterpret_cast<LPTHREAD_START_ROUTINE>(loadLibrary), remote, 0, 0, 0, 0, nullptr);
-                if (status < 0 || !thread) {
-                    DefaultLog(log, L"[MyiUI] NtCreateThreadEx failed: " + std::to_wstring(status), true);
-                }
-            }
+    const std::wstring dllDir = ParentDirectory(dllPath);
+    if (!dllDir.empty()) {
+        DefaultLog(log, L"[MyiUI] SetDllDirectoryW → " + dllDir, false);
+        DWORD setDirResult = 0;
+        if (!RemoteCallKernel32W(process, "SetDllDirectoryW", dllDir.c_str(), log, &setDirResult) ||
+            setDirResult == 0) {
+            DefaultLog(log, L"[MyiUI] SetDllDirectoryW 失败；旁路 DLL 可能无法解析。", true);
+            CloseHandle(process);
+            return false;
         }
     }
 
-    if (!thread) {
-        DefaultLog(log, L"[MyiUI] 无法在目标进程中创建远程线程。", true);
-        VirtualFreeEx(process, remote, 0, MEM_RELEASE);
-        CloseHandle(process);
-        return false;
-    }
-
-    // 增加超时机制，防止目标进程死锁导致注入器卡死
-    DWORD waitResult = WaitForSingleObject(thread, 10000);
-    if (waitResult == WAIT_TIMEOUT) {
-        DefaultLog(log, L"[MyiUI] 远程线程执行超时 (10s)。目标进程可能已死锁或被挂起。", true);
-        // 不释放内存，因为线程可能还在运行
-        CloseHandle(thread);
-        CloseHandle(process);
-        return false;
-    }
-
     DWORD exitCode = 0;
-    GetExitCodeThread(thread, &exitCode);
-    CloseHandle(thread);
-    VirtualFreeEx(process, remote, 0, MEM_RELEASE);
+    DefaultLog(log, L"[MyiUI] Remote LoadLibraryW path: " + dllPath, false);
+    const bool loadOk = RemoteCallKernel32W(process, "LoadLibraryW", dllPath.c_str(), log, &exitCode);
+
+    // Restore default DLL search order in the target process.
+    RemoteCallKernel32W(process, "SetDllDirectoryW", nullptr, log);
     CloseHandle(process);
 
+    if (!loadOk) {
+        DefaultLog(log, L"[MyiUI] DLL injection failed.", true);
+        return false;
+    }
+
     if (exitCode == 0) {
-        DefaultLog(log, L"[MyiUI] LoadLibrary 返回 NULL — DLL 加载失败。可能是缺少依赖 (如 VC++ 运行库) 或路径无效。", true);
+        DefaultLog(log,
+                   L"[MyiUI] LoadLibrary 返回 NULL — DLL 加载失败。请确认 myiui-overlay.dll 完整，"
+                   L"且系统已安装 WebView2 Runtime；"
+                   L"或检查 VC++ 运行库。",
+                   true);
         return false;
     }
     DefaultLog(log, L"[MyiUI] LoadLibraryW returned module=0x" + std::to_wstring(exitCode), false);

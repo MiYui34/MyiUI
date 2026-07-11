@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>MyiUI Browser</title>
+<style>
+  :root {
+    --bg-glass: rgba(20, 20, 28, 0.45);
+    --border-glass: rgba(255, 255, 255, 0.12);
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --accent-glow: #00ffd5;
+    --accent-gradient: linear-gradient(135deg, #00ffd5 0%, #0077ff 100%);
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .jelly-card {
+    display: flex;
+    flex-direction: column;
+    width: min(380px, 85%);
+    padding: 36px;
+    border-radius: 32px;
+    background: rgba(30, 32, 40, 0.85);
+    border: none;
+    box-shadow:
+      0 40px 80px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 -2px 20px rgba(255, 255, 255, 0.03);
+    animation: jelly-pop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes jelly-pop {
+    0% { transform: scale(0.6) translateY(50px); opacity: 0; }
+    50% { transform: scale(1.05) translateY(-10px); }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .pulse-ring {
+    position: relative;
+    width: 12px;
+    height: 12px;
+  }
+
+  .pulse-ring::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--accent-glow);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  p {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    font-weight: 400;
+  }
+</style>
+</head>
+<body>
+  <div class="jelly-card">
+    <div class="header">
+      <div class="pulse-ring"></div>
+      <h1>MyiUI Browser</h1>
+    </div>
+    <p>浏览器引擎已就绪。<br>请在上方地址栏输入网址或搜索内容。</p>
+  </div>
+</body>
+</html>

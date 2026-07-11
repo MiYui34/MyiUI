@@ -7,5 +7,6 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
         DisableThreadLibraryCalls(module);
         HooksInit(module);
     }
+    // Do not tear down WebView2/COM from DllMain (loader lock). Process exit reclaims.
     return TRUE;
 }
