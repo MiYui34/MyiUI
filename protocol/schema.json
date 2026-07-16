@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MyiUI WebSocket Protocol",
+  "description": "Bidirectional JSON messages between Fabric mod (server) and Electron overlay (client).",
+  "oneOf": [
+    { "$ref": "#/$defs/Push" },
+    { "$ref": "#/$defs/Request" },
+    { "$ref": "#/$defs/Response" }
+  ],
+  "$defs": {
+    "Push": {
+      "type": "object",
+      "required": ["type", "data"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "hello", "pong", "screen", "window", "hud", "island", "tablist",
+            "music", "info", "player", "toast", "chat", "bg_video"
+          ]
+        },
+        "data": { "type": "object" }
+      }
+    },
+    "Request": {
+      "type": "object",
+      "required": ["id", "type", "cmd"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["action", "query"] },
+        "cmd": { "type": "string" },
+        "data": { "type": "object" }
+      }
+    },
+    "Response": {
+      "type": "object",
+      "required": ["id", "ok"],
+      "properties": {
+        "id": { "type": "string" },
+        "ok": { "type": "boolean" },
+        "data": { "type": "object" }
+      }
+    }
+  }
+}

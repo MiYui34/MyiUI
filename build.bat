@@ -1,27 +1,30 @@
 @echo off
 setlocal
-set ROOT=%~dp0
-set MYIUI_ROOT=%ROOT%
+echo === MyiUI Dual-Star Build ===
 
-echo [1/2] Building agent (Gradle)...
-cd /d "%ROOT%agent"
-call gradle jar
+echo.
+echo [1/2] Building Fabric mod (active Stonecutter node)...
+cd /d "%~dp0mod"
+call gradlew.bat buildAndCollect --no-daemon
 if errorlevel 1 (
-    echo [ERROR] Agent build failed.
-    exit /b 1
-)
-
-echo [2/2] Building native (CMake)...
-cd /d "%ROOT%"
-cmake -S . -B build -A x64
-cmake --build build --config Release
-if errorlevel 1 (
-    echo [ERROR] Native build failed.
-    exit /b 1
+  echo Mod build failed.
+  exit /b 1
 )
 
 echo.
-echo [OK] Build complete:
-echo   Agent:    %ROOT%agent\build\libs\myiui-agent-1.0.0.jar
-echo   Injector: %ROOT%build\injector\Release\myiui-injector.exe
-echo   Overlay:  %ROOT%build\overlay\Release\myiui-overlay.dll
+echo [2/2] Installing Electron overlay deps...
+cd /d "%~dp0electron"
+call npm install
+if errorlevel 1 (
+  echo Electron npm install failed.
+  exit /b 1
+)
+
+echo.
+echo Done.
+echo   Mod jars:   mod\build\libs\
+echo   Overlay:    cd electron ^&^& npm start
+echo.
+echo Tip: use "gradlew :1.21.6:build" / "gradlew :26.1.2:build" or Stonecutter "Set active project" for other MC versions.
+echo Supported: 1.21-1.21.11, 26.1, 26.1.1, 26.1.2, 26.2
+endlocal

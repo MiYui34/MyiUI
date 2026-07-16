@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "Modern Web UI overlay for Minecraft via Fabric + Electron dual-star architecture.",
+  "authors": ["MyiUI"],
+  "contact": {},
+  "license": "AGPL-3.0",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.myiui.MyiuiClient"
+    ]
+  },
+  "mixins": [
+    "myiui.mixins.json"
+  ],
+  "accessWidener": "myiui.ct",
+  "depends": {
+    "fabricloader": ">=0.17",
+    "fabric-api": "*",
+    "minecraft": "${minecraft}",
+    "java": ">=21"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "myiui-overlay",
+  "version": "2.0.0",
+  "description": "MyiUI Electron transparent overlay for Minecraft",
+  "main": "main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

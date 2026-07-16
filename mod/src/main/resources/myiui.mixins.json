@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.myiui.mixin",
+  "compatibilityLevel": "${java}",
+  "client": [
+    "InGameHudMixin",
+    "TitleScreenMixin",
+    "PlayerListHudMixin",
+    "ChatHudMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
